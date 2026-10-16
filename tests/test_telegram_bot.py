@@ -1,0 +1,121 @@
+
+from unittest.mock import AsyncMock, patch, MagicMock
+
+import pytest
+
+from src.bot.telegram_bot import handle_message, reset
+from src.database.conversation_db import (
+    init_db,
+    save_message,
+    get_history,
+)
+
+
+@pytest.fixture
+def test_database(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_telegram.db"
+
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+    return test_db
+
+
+def make_update(user_id, message_text):
+    update = MagicMock()
+    update.effective_user.id = user_id
+    update.message.text = message_text
+    update.message.reply_text = AsyncMock()
+    return update
+
+
+def make_context():
+    return MagicMock()
+
+
+@pytest.mark.asyncio
+async def test_handle_message_saves_exchange(test_database):
+    update = make_update(123, "My favourite colour is purple")
+    context = make_context()
+
+    with patch(
+        "src.bot.telegram_bot.ask_ollama",
+        return_value="Your favourite colour is purple.",
+    ):
+        await handle_message(update, context)
+
+    assert get_history(123) == [
+        {
+            "role": "user",
+            "content": "My favourite colour is purple",
+        },
+        {
+            "role": "assistant",
+            "content": "Your favourite colour is purple.",
+        },
+    ]
+
+    update.message.reply_text.assert_awaited_once_with(
+        "Your favourite colour is purple."
+    )
+
+
+@pytest.mark.asyncio
+async def test_handle_message_includes_previous_history(test_database):
+    save_message(123, "user", "My favourite colour is purple")
+    save_message(123, "assistant", "I'll remember that.")
+
+    update = make_update(123, "What is my favourite colour?")
+    context = make_context()
+
+    with patch(
+        "src.bot.telegram_bot.ask_ollama",
+        return_value="Purple.",
+    ) as mock_ollama:
+        await handle_message(update, context)
+
+    prompt = mock_ollama.call_args.args[0]
+
+    assert "My favourite colour is purple" in prompt
+    assert "I'll remember that." in prompt
+    assert "What is my favourite colour?" in prompt
+
+
+@pytest.mark.asyncio
+async def test_reset_clears_only_current_user(test_database):
+    save_message(123, "user", "My colour is purple")
+    save_message(456, "user", "My colour is green")
+
+    update = make_update(123, "/reset")
+    update.effective_user = MagicMock(id=123)
+    context = make_context()
+
+    await reset(update, context)
+
+    assert get_history(123) == []
+    assert get_history(456) == [
+        {"role": "user", "content": "My colour is green"}
+    ]
+
+    update.message.reply_text.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ollama_error_is_not_saved(test_database):
+    update = make_update(123, "Hello")
+    context = make_context()
+
+    with patch(
+        "src.bot.telegram_bot.ask_ollama",
+        return_value="Error: Could not connect to Ollama.",
+    ):
+        await handle_message(update, context)
+
+    assert get_history(123) == []
+
+    update.message.reply_text.assert_awaited_once_with(
+        "Error: Could not connect to Ollama."
+    )
