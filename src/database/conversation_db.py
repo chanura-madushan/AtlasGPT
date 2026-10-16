@@ -32,6 +32,9 @@ def save_message(user_id: int, role: str, content: str):
 
 
 def get_history(user_id: int, limit: int = 10) -> list[dict]:
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+
     with sqlite3.connect(DATABASE_PATH) as connection:
         connection.row_factory = sqlite3.Row
 
@@ -50,6 +53,7 @@ def get_history(user_id: int, limit: int = 10) -> list[dict]:
         {"role": row["role"], "content": row["content"]}
         for row in reversed(rows)
     ]
+
 
 
 def clear_history(user_id: int):

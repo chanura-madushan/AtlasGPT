@@ -1,10 +1,11 @@
 
+import pytest
+
 from src.database.conversation_db import (
     init_db,
     save_message,
     get_history,
     clear_history,
-    DATABASE_PATH,
 )
 
 
@@ -34,3 +35,35 @@ def test_conversation_database_operations(tmp_path, monkeypatch):
     clear_history(123)
 
     assert get_history(123) == []
+
+
+def test_get_history_returns_latest_messages_in_order(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_history_limit.db"
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+
+    for number in range(12):
+        save_message(123, "user", f"Message {number}")
+
+    history = get_history(123)
+
+    assert len(history) == 10
+    assert history[0]["content"] == "Message 2"
+    assert history[-1]["content"] == "Message 11"
+
+
+def test_get_history_rejects_invalid_limit(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_invalid_limit.db"
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        get_history(123, limit=0)
