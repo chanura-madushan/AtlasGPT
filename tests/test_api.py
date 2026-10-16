@@ -41,3 +41,39 @@ def test_chat_ollama_error(mock_ask_ollama):
     assert response.json() == {
         "detail": "Error: Could not connect to Ollama. Is Ollama running?"
     }
+
+
+
+def test_chat_empty_message():
+    response = client.post(
+        "/chat",
+        json={"message": ""}
+    )
+
+    assert response.status_code == 422
+
+
+
+def test_chat_message_too_long():
+    response = client.post(
+        "/chat",
+        json={"message": "a" * 4001}
+    )
+
+    assert response.status_code == 422
+
+
+
+
+
+
+def test_chat_whitespace_only_message():
+    response = client.post(
+        "/chat",
+        json={"message": "   "}
+    )
+
+    assert response.status_code == 422
+
+
+
