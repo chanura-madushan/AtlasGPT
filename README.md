@@ -168,13 +168,58 @@ Install the testing dependencies as well:
 python -m pip install pytest pytest-asyncio
 ```
 
-### 4. Download the language model
+### 4. Choose and download a local LLM
 
-Make sure Ollama is installed and running, then execute:
+AtlasGPT uses `qwen2.5:3b` by default. You can try a larger or newer model for potentially better answers, depending on your computer's hardware.
+
+**Hardware recommendations are estimates, not strict minimum requirements.** Download sizes refer to the listed Ollama versions and may change. Actual memory usage depends on the context length, quantization, and other running applications.
+
+| Model | Approx. download size | Suggested system RAM | Suggested GPU VRAM | Best for |
+|---|---:|---:|---:|---|
+| [Qwen3 4B](https://ollama.com/library/qwen3:4b) — `qwen3:4b` | 2.5 GB | 8–16 GB | 4 GB | Lightweight upgrade for everyday questions |
+| [Gemma 3 4B](https://ollama.com/library/gemma3:4b) — `gemma3:4b` | 3.4 GB | 8–16 GB | 4–6 GB | General chat and image understanding |
+| [Qwen3 8B](https://ollama.com/library/qwen3:8b) — `qwen3:8b` | 5.2 GB | 16 GB | 8 GB | General answers, reasoning, and coding |
+| [Llama 3.1 8B](https://ollama.com/library/llama3.1:8b) — `llama3.1:8b` | 4.9 GB | 16 GB | 8 GB | General-purpose text assistant |
+| [Gemma 3 12B](https://ollama.com/library/gemma3:12b) — `gemma3:12b` | 8.2 GB | 24–32 GB | 12 GB | More capable chat and image understanding |
+| [Qwen3 14B](https://ollama.com/library/qwen3:14b) — `qwen3:14b` | 9.3 GB | 32 GB | 16 GB | Higher-capability responses on stronger computers |
+
+#### Which model should you choose?
+
+- **8 GB RAM:** Start with `qwen3:4b`.
+- **16 GB RAM:** Try `qwen3:8b` if it runs comfortably on your machine.
+- **16 GB RAM with an 8 GB GPU:** Try `qwen3:8b` or `llama3.1:8b`.
+- **32 GB RAM and a 12–16 GB GPU:** Consider `gemma3:12b` or `qwen3:14b`.
+
+A larger model can provide better answers, but it is not automatically faster. For a faster experience, a smaller model that fits in your GPU memory may outperform a larger model running mostly on the CPU.
+
+#### Download your chosen model
+
+Install and start [Ollama](https://ollama.com/download), then run one of these commands in your terminal:
 
 ```bash
-ollama pull qwen2.5:3b
+ollama pull qwen3:4b
 ```
+
+Or choose a larger model:
+
+```bash
+ollama pull qwen3:8b
+```
+
+Other available options include `gemma3:4b`, `llama3.1:8b`, `gemma3:12b`, and `qwen3:14b`. Use the matching model tag in the `ollama pull` command.
+
+#### Configure AtlasGPT to use the model
+
+Open your project's `.env` file and change `OLLAMA_MODEL` to your chosen model. For example:
+
+```dotenv
+OLLAMA_MODEL=qwen3:8b
+OLLAMA_URL=http://localhost:11434
+```
+
+Save the file and restart AtlasGPT. Your existing `qwen2.5:3b` model can remain installed; you can switch between installed models by changing `OLLAMA_MODEL`.
+
+Use `ollama list` to see which models are installed.
 
 AtlasGPT uses `qwen2.5:3b` by default. Ollama must be accessible at `http://localhost:11434` unless you configure a different endpoint.
 
