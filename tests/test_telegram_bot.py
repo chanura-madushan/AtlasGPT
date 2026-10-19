@@ -3,7 +3,11 @@ from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 
-from src.bot.telegram_bot import handle_message, reset
+from src.bot.telegram_bot import (
+    handle_message,
+    reset,
+    get_history_limit,
+)
 from src.database.conversation_db import (
     init_db,
     save_message,
@@ -119,3 +123,22 @@ async def test_ollama_error_is_not_saved(test_database):
     update.message.reply_text.assert_awaited_once_with(
         "Error: Could not connect to Ollama."
     )
+
+
+
+def test_get_history_limit_uses_configured_value(monkeypatch):
+    monkeypatch.setenv("CONVERSATION_HISTORY_LIMIT", "20")
+
+    assert get_history_limit() == 20
+
+
+def test_get_history_limit_defaults_for_invalid_value(monkeypatch):
+    monkeypatch.setenv("CONVERSATION_HISTORY_LIMIT", "abc")
+
+    assert get_history_limit() == 10
+
+
+def test_get_history_limit_enforces_minimum(monkeypatch):
+    monkeypatch.setenv("CONVERSATION_HISTORY_LIMIT", "0")
+
+    assert get_history_limit() == 1

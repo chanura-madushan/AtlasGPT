@@ -20,7 +20,20 @@ from src.database.conversation_db import (
 )
 
 load_dotenv()
+
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+
+def get_history_limit() -> int:
+    try:
+        limit = int(os.getenv("CONVERSATION_HISTORY_LIMIT", "10"))
+    except ValueError:
+        return 10
+
+    return max(1, limit)
+
+
+CONVERSATION_HISTORY_LIMIT = get_history_limit()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,7 +55,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     user_message = update.message.text
 
-    history = get_history(user_id)
+    history = get_history(
+        user_id,
+        limit=CONVERSATION_HISTORY_LIMIT,
+    )
 
     conversation = [
         f"{message['role']}: {message['content']}"
