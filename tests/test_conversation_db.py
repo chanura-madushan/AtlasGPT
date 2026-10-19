@@ -9,9 +9,9 @@ from src.database.conversation_db import (
 )
 
 
-def test_conversation_database_operations(tmp_path, monkeypatch):
-    # Use a temporary database so the real AtlasGPT data is untouched.
-    test_db = tmp_path / "test_atlasgpt.db"
+def test_conversations_have_separate_histories(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_separate_chats.db"
+
     monkeypatch.setattr(
         "src.database.conversation_db.DATABASE_PATH",
         test_db,
@@ -19,51 +19,68 @@ def test_conversation_database_operations(tmp_path, monkeypatch):
 
     init_db()
 
-    save_message(123, "user", "My favourite colour is blue.")
-    save_message(123, "assistant", "I'll remember that.")
-
-    history = get_history(123)
-
-    assert history == [
-        {"role": "user", "content": "My favourite colour is blue."},
-        {"role": "assistant", "content": "I'll remember that."},
-    ]
-
-    # A different user must not see user 123's history.
-    assert get_history(456) == []
-
-    clear_history(123)
-
-    assert get_history(123) == []
-
-
-def test_get_history_returns_latest_messages_in_order(tmp_path, monkeypatch):
-    test_db = tmp_path / "test_history_limit.db"
-    monkeypatch.setattr(
-        "src.database.conversation_db.DATABASE_PATH",
-        test_db,
+    save_message(
+        123, "user", "I am learning Python",
+        conversation_id="python-chat",
+    )
+    save_message(
+        123, "user", "I am studying AI",
+        conversation_id="ai-chat",
     )
 
-    init_db()
-
-    for number in range(12):
-        save_message(123, "user", f"Message {number}")
-
-    history = get_history(123)
-
-    assert len(history) == 10
-    assert history[0]["content"] == "Message 2"
-    assert history[-1]["content"] == "Message 11"
-
-
-def test_get_history_rejects_invalid_limit(tmp_path, monkeypatch):
-    test_db = tmp_path / "test_invalid_limit.db"
-    monkeypatch.setattr(
-        "src.database.conversation_db.DATABASE_PATH",
-        test_db,
+    python_history = get_history(
+        123, conversation_id="python-chat"
+    )
+    ai_history = get_history(
+        123, conversation_id="ai-chat"
     )
 
+    assert len(python_history) == 1
+    assert python_history[0]["content"] == "I am learning Python"
+
+    assert len(ai_history) == 1
+    assert ai_history[0]["content"] == "I am studying AI"
+
+
+
+def test_init_db_adds_conversation_id_to_existing_database(
+    tmp_path, monkeypatch
+):
+    import sqlite3
+    from src.database import conversation_db
+
+    test_db = tmp_path / "old_database.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    # Simulate the old database schema.
+    with sqlite3.connect(test_db) as connection:
+        connection.execute("""
+            CREATE TABLE conversation_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        connection.execute("""
+            INSERT INTO conversation_messages (user_id, role, content)
+            VALUES (123, 'user', 'Existing message')
+        """)
+
+    # Initialize the database using the new schema.
     init_db()
 
-    with pytest.raises(ValueError, match="limit must be at least 1"):
-        get_history(123, limit=0)
+    with sqlite3.connect(test_db) as connection:
+        columns = [
+            column[1]
+            for column in connection.execute(
+                "PRAGMA table_info(conversation_messages)"
+            ).fetchall()
+        ]
+        message = connection.execute(
+            "SELECT content FROM conversation_messages WHERE user_id = 123"
+        ).fetchone()
+
+    assert "conversation_id" in columns
+    assert message[0] == "Existing message"

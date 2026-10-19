@@ -13,25 +13,48 @@ def init_db():
             CREATE TABLE IF NOT EXISTS conversation_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
+                conversation_id TEXT,
                 role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
                 content TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
+        columns = connection.execute(
+            "PRAGMA table_info(conversation_messages)"
+        ).fetchall()
 
-def save_message(user_id: int, role: str, content: str):
+        column_names = [column[1] for column in columns]
+
+        if "conversation_id" not in column_names:
+            connection.execute(
+                "ALTER TABLE conversation_messages "
+                "ADD COLUMN conversation_id TEXT"
+            )
+
+
+def save_message(
+    user_id: int,
+    role: str,
+    content: str,
+    conversation_id: str | None = None,
+):
     with sqlite3.connect(DATABASE_PATH) as connection:
         connection.execute(
             """
-            INSERT INTO conversation_messages (user_id, role, content)
-            VALUES (?, ?, ?)
+            INSERT INTO conversation_messages
+                (user_id, conversation_id, role, content)
+            VALUES (?, ?, ?, ?)
             """,
-            (user_id, role, content),
+            (user_id, conversation_id, role, content),
         )
 
 
-def get_history(user_id: int, limit: int = 10) -> list[dict]:
+def get_history(
+    user_id: int,
+    limit: int = 10,
+    conversation_id: str | None = None,
+) -> list[dict]:
     if limit < 1:
         raise ValueError("limit must be at least 1")
 
@@ -43,10 +66,11 @@ def get_history(user_id: int, limit: int = 10) -> list[dict]:
             SELECT role, content
             FROM conversation_messages
             WHERE user_id = ?
+                AND conversation_id IS ?
             ORDER BY id DESC
             LIMIT ?
             """,
-            (user_id, limit),
+            (user_id, conversation_id, limit),
         ).fetchall()
 
     return [
