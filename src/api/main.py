@@ -1,7 +1,7 @@
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
-
+from contextlib import asynccontextmanager
 from src.llm.ollama_client import ask_ollama
 from src.database.conversation_db import (
     get_history,
@@ -9,10 +9,13 @@ from src.database.conversation_db import (
     save_message,
 )
 
-app = FastAPI()
-@app.on_event("startup")
-def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_db()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 class ChatRequest(BaseModel):
