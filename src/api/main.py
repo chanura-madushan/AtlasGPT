@@ -1,13 +1,25 @@
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field, field_validator
+import os
+import secrets
 from contextlib import asynccontextmanager
-from src.llm.ollama_client import ask_ollama
+from src.llm.conversation_engine import process_message
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field, field_validator
+
 from src.database.conversation_db import (
     get_history,
     init_db,
     save_message,
 )
+from src.llm.ollama_client import ask_ollama
+
+load_dotenv()
+
+API_KEY = os.getenv("ATLASGPT_API_KEY", "").strip()
+bearer_scheme = HTTPBearer(auto_error=False)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -30,6 +42,32 @@ class ChatRequest(BaseModel):
             raise ValueError("Message cannot be blank or whitespace only")
         return value
 
+    @field_validator("conversation_id")
+    @classmethod
+    def conversation_id_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Conversation ID cannot be blank")
+        return value
+
+
+def require_api_key(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+) -> None:
+    if not API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication is not configured",
+        )
+
+    if credentials is None or not secrets.compare_digest(
+        credentials.credentials, API_KEY
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
 
 @app.get("/")
 def home():
@@ -38,33 +76,20 @@ def home():
 
 
 @app.post("/chat")
-def chat(request: ChatRequest):
-    history = get_history(
-        request.user_id,
+def chat(
+    request: ChatRequest,
+    _: None = Depends(require_api_key),
+):
+    answer = process_message(
+        user_id=request.user_id,
         conversation_id=request.conversation_id,
+        message=request.message,
     )
-
-    answer = ask_ollama(request.message, history=history)
 
     if answer.startswith("Error:"):
         raise HTTPException(
-            status_code=503,
-            detail=answer,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The language model service is temporarily unavailable",
         )
 
-    save_message(
-        request.user_id,
-        "user",
-        request.message,
-        conversation_id=request.conversation_id,
-    )
-
-    save_message(
-        request.user_id,
-        "assistant",
-        answer,
-        conversation_id=request.conversation_id,
-    )
-
     return {"reply": answer}
-
