@@ -1,12 +1,14 @@
-
 from src.database.conversation_db import get_history, save_message
 from src.llm.ollama_client import ask_ollama
+from src.rag.retriever import retrieve_context
 
 
 SYSTEM_PROMPT = (
     "You are AtlasGPT, a helpful AI assistant. "
-    "Use the conversation history to answer follow-up questions. "
-    "Do not invent personal details that the user has not provided."
+    "Use the provided document context when it is relevant to the user's question. "
+    "If the answer is not available in the document context, say so clearly. "
+    "Do not invent information. "
+    "Use the conversation history to answer follow-up questions."
 )
 
 
@@ -16,15 +18,28 @@ def process_message(
     message: str,
     history_limit: int = 10,
 ) -> str:
-    """Process a message using shared history and persist successful replies."""
+    """Process a message using conversation history and document context."""
+
     history = get_history(
         user_id,
         limit=history_limit,
         conversation_id=conversation_id,
     )
 
+    retrieved_chunks = retrieve_context(message)
+
+    document_context = "\n\n".join(
+        result["text"] for result in retrieved_chunks
+    )
+
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"DOCUMENT CONTEXT:\n{document_context}\n\n"
+        f"USER QUESTION:\n{message}"
+    )
+
     answer = ask_ollama(
-        f"{SYSTEM_PROMPT}\n\n{message}",
+        prompt,
         history=history,
     )
 
@@ -37,6 +52,7 @@ def process_message(
         message,
         conversation_id=conversation_id,
     )
+
     save_message(
         user_id,
         "assistant",
