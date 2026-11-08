@@ -1,0 +1,1 @@
+AtlasGPT is an AI assistant that answers questions using documents.
