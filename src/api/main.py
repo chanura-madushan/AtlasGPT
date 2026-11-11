@@ -1,10 +1,6 @@
-
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-import hmac
-import os
-
-from dotenv import load_dotenv
 from fastapi import (
     Depends,
     FastAPI,
@@ -16,17 +12,22 @@ from fastapi import (
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 
-from src.database.conversation_db import init_db
+from src.database.conversation_db import (
+    init_db,
+    get_user_by_api_key,
+)
 from src.llm.conversation_engine import process_message
 from src.rag.ingest import ingest_document
 from src.rag.vector_store import list_documents, delete_document
 
 
+logger = logging.getLogger(__name__)
+
 # --------------------------------------------------
 # Configuration
 # --------------------------------------------------
 
-load_dotenv()
+
 
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,6 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
-API_KEY = os.getenv("ATLASGPT_API_KEY")
 
 security = HTTPBearer(auto_error=False)
 
@@ -45,22 +45,24 @@ security = HTTPBearer(auto_error=False)
 
 def require_api_key(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
-):
-    if not API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API key is not configured",
-        )
-
-    if credentials is None or not hmac.compare_digest(
-        credentials.credentials,
-        API_KEY,
-    ):
+) -> int:
+    if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    user_id = get_user_by_api_key(credentials.credentials)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return user_id
 
 
 # --------------------------------------------------
@@ -88,7 +90,6 @@ app = FastAPI(
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     conversation_id: str = Field(min_length=1, max_length=100)
-    user_id: int = Field(gt=0)
 
     @field_validator("message")
     @classmethod
@@ -121,10 +122,10 @@ def home():
 @app.post("/chat")
 def chat(
     request: ChatRequest,
-    _: None = Depends(require_api_key),
+    user_id: int = Depends(require_api_key),
 ):
     answer = process_message(
-        user_id=request.user_id,
+        user_id=user_id,
         conversation_id=request.conversation_id,
         message=request.message,
     )
@@ -145,7 +146,7 @@ def chat(
 @app.post("/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    _: None = Depends(require_api_key),
+    user_id: int = Depends(require_api_key),
 ):
     if not file.filename:
         raise HTTPException(
@@ -163,7 +164,10 @@ async def upload_document(
             detail="Only PDF and TXT files are allowed",
         )
 
-    file_path = UPLOAD_DIR / filename
+    user_upload_dir = UPLOAD_DIR / str(user_id)
+    user_upload_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = user_upload_dir / filename
 
     # Avoid accidentally replacing an existing document.
     if file_path.exists():
@@ -189,7 +193,7 @@ async def upload_document(
     try:
         file_path.write_bytes(file_content)
 
-        chunks = ingest_document(str(file_path))
+        chunks = ingest_document(str(file_path), user_id)
 
         return {
             "message": "Document uploaded and indexed successfully",
@@ -198,7 +202,7 @@ async def upload_document(
         }
 
     except Exception as error:
-        print(f"DOCUMENT PROCESSING ERROR: {error!r}")
+        logger.exception("Document processing failed")
 
         file_path.unlink(missing_ok=True)
 
@@ -214,10 +218,10 @@ async def upload_document(
 
 @app.get("/documents")
 def get_documents(
-    _: None = Depends(require_api_key),
+    user_id: int = Depends(require_api_key),
 ):
     return {
-        "documents": list_documents(),
+        "documents": list_documents(user_id),
     }
 
 
@@ -228,7 +232,7 @@ def get_documents(
 @app.delete("/documents/{filename}")
 def remove_document(
     filename: str,
-    _: None = Depends(require_api_key),
+    user_id: int = Depends(require_api_key),
 ):
     if Path(filename).name != filename or filename in {".", ".."}:
         raise HTTPException(
@@ -236,7 +240,7 @@ def remove_document(
             detail="Invalid filename",
         )
 
-    file_path = UPLOAD_DIR / filename
+    file_path = UPLOAD_DIR / str(user_id) / filename
 
     if not file_path.is_file():
         raise HTTPException(
@@ -245,7 +249,7 @@ def remove_document(
         )
 
     try:
-        delete_document(filename)
+        delete_document(filename, user_id)
         file_path.unlink()
 
         return {
@@ -254,7 +258,7 @@ def remove_document(
         }
 
     except Exception as error:
-        print(f"DOCUMENT DELETION ERROR: {error!r}")
+        logger.exception("Document deletion failed")
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -1,8 +1,10 @@
-
+import hashlib
+import secrets
 import sqlite3
 from pathlib import Path
 
 DATABASE_PATH = Path(__file__).resolve().parents[2] / "data" / "atlasgpt.db"
+
 
 
 def init_db():
@@ -20,6 +22,15 @@ def init_db():
             )
         """)
 
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS api_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                key_hash TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         columns = connection.execute(
             "PRAGMA table_info(conversation_messages)"
         ).fetchall()
@@ -31,6 +42,7 @@ def init_db():
                 "ALTER TABLE conversation_messages "
                 "ADD COLUMN conversation_id TEXT"
             )
+
 
 
 def save_message(
@@ -88,6 +100,39 @@ def clear_history(user_id: int):
         )
 
 
+
+def create_api_credential(user_id: int) -> str:
+    api_key = secrets.token_urlsafe(32)
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute(
+            """
+            INSERT INTO api_credentials (user_id, key_hash)
+            VALUES (?, ?)
+            """,
+            (user_id, key_hash),
+        )
+
+    return api_key
+
+
+def get_user_by_api_key(api_key: str) -> int | None:
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        result = connection.execute(
+            """
+            SELECT user_id
+            FROM api_credentials
+            WHERE key_hash = ?
+            """,
+            (key_hash,),
+        ).fetchone()
+
+    return result[0] if result else None
+
+
+
 if __name__ == "__main__":
     init_db()
-    print(f"Database initialized at: {DATABASE_PATH}")

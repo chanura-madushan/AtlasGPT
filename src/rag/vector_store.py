@@ -7,22 +7,22 @@ CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 
-
-
 collection = client.get_or_create_collection(
     name="atlasgpt_documents",
     metadata={"hnsw:space": "cosine"},
 )
 
 
-
-
 def add_documents(
     chunks: list[str],
     embeddings: list[list[float]],
     source: str,
+    user_id: int,
 ) -> None:
-    #Store document chunks and their embeddings in ChromaDB.
+    """Store document chunks with their owner's ID."""
+
+    if user_id <= 0:
+        raise ValueError("user_id must be greater than zero.")
 
     if len(chunks) != len(embeddings):
         raise ValueError("Each chunk must have one embedding.")
@@ -30,101 +30,87 @@ def add_documents(
     if not chunks:
         return
 
-    ids = [f"{source}_{i}" for i in range(len(chunks))]
+    ids = [
+        f"user_{user_id}_{source}_{i}"
+        for i in range(len(chunks))
+    ]
 
     collection.upsert(
         ids=ids,
         documents=chunks,
         embeddings=embeddings,
-        metadatas=[{"source": source} for _ in chunks],
+        metadatas=[
+            {"source": source, "user_id": user_id}
+            for _ in chunks
+        ],
     )
-
 
 
 def search_documents(
     query_embedding: list[float],
+    user_id: int,
     n_results: int = 3,
     source: str | None = None,
 ) -> list[dict]:
-    #Find relevant chunks, optionally limited to one source.
+    """Search only documents owned by the specified user."""
+
+    if user_id <= 0:
+        raise ValueError("user_id must be greater than zero.")
 
     if n_results <= 0:
         raise ValueError("n_results must be greater than zero.")
 
-    total = collection.count()
+    filters = [{"user_id": user_id}]
+
+    if source:
+        filters.append({"source": source})
+
+    where = (
+        filters[0]
+        if len(filters) == 1
+        else {"$and": filters}
+    )
+
+    total = len(
+    collection.get(
+        where=where,
+        include=[],
+    )["ids"]
+)
 
     if total == 0:
         return []
 
-    query_options = {
-        "query_embeddings": [query_embedding],
-        "n_results": min(n_results, total),
-    }
-
-    if source:
-        query_options["where"] = {"source": source}
-
-    results = collection.query(**query_options)
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=min(n_results, total),
+        where=where,
+    )
 
     matches = []
 
     for i, document in enumerate(results["documents"][0] or []):
+        metadata = results["metadatas"][0][i]
+
         matches.append({
             "text": document,
-            "source": results["metadatas"][0][i]["source"],
+            "source": metadata["source"],
             "distance": results["distances"][0][i],
         })
 
     return matches
 
 
+def list_documents(user_id: int) -> list[dict]:
+    """List only documents belonging to the specified user."""
 
-import chromadb
-from pathlib import Path
+    if user_id <= 0:
+        raise ValueError("user_id must be greater than zero.")
 
-CHROMA_DIR = Path("data/chroma")
-CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-
-client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-
-
-
-collection = client.get_or_create_collection(
-    name="atlasgpt_documents",
-    metadata={"hnsw:space": "cosine"},
-)
-
-
-
-
-def add_documents(
-    chunks: list[str],
-    embeddings: list[list[float]],
-    source: str,
-) -> None:
-    #Store document chunks and their embeddings in ChromaDB.
-
-    if len(chunks) != len(embeddings):
-        raise ValueError("Each chunk must have one embedding.")
-
-    if not chunks:
-        return
-
-    ids = [f"{source}_{i}" for i in range(len(chunks))]
-
-    collection.upsert(
-        ids=ids,
-        documents=chunks,
-        embeddings=embeddings,
-        metadatas=[{"source": source} for _ in chunks],
+    results = collection.get(
+        where={"user_id": user_id},
+        include=["metadatas"],
     )
-
-
-
-def list_documents() -> list[dict]:
-    """Return a list of stored documents and their chunk counts."""
-
-    results = collection.get(include=["metadatas"])
 
     documents = {}
 
@@ -138,49 +124,17 @@ def list_documents() -> list[dict]:
     ]
 
 
+def delete_document(source: str, user_id: int) -> None:
+    """Delete a document only if it belongs to the specified user."""
 
-
-
-def search_documents(
-    query_embedding: list[float],
-    n_results: int = 3,
-    source: str | None = None,
-) -> list[dict]:
-    #Find relevant chunks, optionally limited to one source.
-
-    if n_results <= 0:
-        raise ValueError("n_results must be greater than zero.")
-
-    total = collection.count()
-
-    if total == 0:
-        return []
-
-    query_options = {
-        "query_embeddings": [query_embedding],
-        "n_results": min(n_results, total),
-    }
-
-    if source:
-        query_options["where"] = {"source": source}
-
-    results = collection.query(**query_options)
-
-    matches = []
-
-    for i, document in enumerate(results["documents"][0] or []):
-        matches.append({
-            "text": document,
-            "source": results["metadatas"][0][i]["source"],
-            "distance": results["distances"][0][i],
-        })
-
-    return matches
-
-
-def delete_document(source: str) -> None:
-    """Delete all chunks belonging to a document."""
+    if user_id <= 0:
+        raise ValueError("user_id must be greater than zero.")
 
     collection.delete(
-        where={"source": source}
+        where={
+            "$and": [
+                {"source": source},
+                {"user_id": user_id},
+            ]
+        }
     )

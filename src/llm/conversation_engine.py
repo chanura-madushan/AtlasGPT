@@ -26,7 +26,10 @@ def process_message(
         conversation_id=conversation_id,
     )
 
-    retrieved_chunks = retrieve_context(message)
+    retrieved_chunks = retrieve_context(
+    message,
+    user_id=user_id,
+    )
 
     document_context = "\n\n".join(
         result["text"] for result in retrieved_chunks

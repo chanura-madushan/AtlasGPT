@@ -1,3 +1,10 @@
+import hashlib
+import sqlite3
+
+from src.database.conversation_db import (
+    create_api_credential,
+    get_user_by_api_key,
+)
 
 import pytest
 
@@ -84,3 +91,50 @@ def test_init_db_adds_conversation_id_to_existing_database(
 
     assert "conversation_id" in columns
     assert message[0] == "Existing message"
+
+
+
+def test_api_credential_creation_and_lookup(tmp_path, monkeypatch):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    api_key = create_api_credential(123)
+
+    assert isinstance(api_key, str)
+    assert len(api_key) > 20
+    assert get_user_by_api_key(api_key) == 123
+
+
+def test_api_key_is_stored_as_hash(tmp_path, monkeypatch):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    api_key = create_api_credential(123)
+    expected_hash = hashlib.sha256(api_key.encode()).hexdigest()
+
+    with sqlite3.connect(test_db) as connection:
+        stored_hash = connection.execute(
+            "SELECT key_hash FROM api_credentials WHERE user_id = 123"
+        ).fetchone()[0]
+
+    assert stored_hash == expected_hash
+    assert stored_hash != api_key
+
+
+def test_invalid_api_key_returns_none(tmp_path, monkeypatch):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    assert get_user_by_api_key("invalid-key") is None

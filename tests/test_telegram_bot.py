@@ -1,5 +1,4 @@
-
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
@@ -98,6 +97,34 @@ async def test_handle_message_includes_previous_history(test_database):
     )
 
     update.message.reply_text.assert_awaited_once_with("Purple.")
+
+@pytest.mark.asyncio
+async def test_telegram_users_have_separate_conversations(test_database):
+    user_123 = make_update(123, "My name is Alex")
+    user_456 = make_update(456, "My name is Sam")
+
+    with patch(
+        "src.bot.telegram_bot.process_message",
+        side_effect=["Hello Alex!", "Hello Sam!"],
+    ) as mock_process:
+
+        await handle_message(user_123, make_context())
+        await handle_message(user_456, make_context())
+
+    assert mock_process.call_args_list == [
+        call(
+            user_id=123,
+            conversation_id="telegram-123",
+            message="My name is Alex",
+            history_limit=10,
+        ),
+        call(
+            user_id=456,
+            conversation_id="telegram-456",
+            message="My name is Sam",
+            history_limit=10,
+        ),
+    ]
 
 
 @pytest.mark.asyncio

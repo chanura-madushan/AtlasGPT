@@ -42,7 +42,10 @@ def test_process_message_saves_successful_exchange(
         conversation_id="test-chat",
     )
 
-    mock_retrieve_context.assert_called_once_with("Explain Python")
+    mock_retrieve_context.assert_called_once_with(
+    "Explain Python",
+    user_id=123,
+    )
 
     mock_ask_ollama.assert_called_once_with(
         (
