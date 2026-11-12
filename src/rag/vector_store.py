@@ -3,6 +3,7 @@ import chromadb
 from pathlib import Path
 
 CHROMA_DIR = Path("data/chroma")
+MAX_DISTANCE = 0.7
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
@@ -46,13 +47,14 @@ def add_documents(
     )
 
 
+
 def search_documents(
     query_embedding: list[float],
     user_id: int,
     n_results: int = 3,
     source: str | None = None,
 ) -> list[dict]:
-    """Search only documents owned by the specified user."""
+    """Search only relevant documents belonging to one user."""
 
     if user_id <= 0:
         raise ValueError("user_id must be greater than zero.")
@@ -72,11 +74,11 @@ def search_documents(
     )
 
     total = len(
-    collection.get(
-        where=where,
-        include=[],
-    )["ids"]
-)
+        collection.get(
+            where=where,
+            include=[],
+        )["ids"]
+    )
 
     if total == 0:
         return []
@@ -91,14 +93,17 @@ def search_documents(
 
     for i, document in enumerate(results["documents"][0] or []):
         metadata = results["metadatas"][0][i]
+        distance = results["distances"][0][i]
 
-        matches.append({
-            "text": document,
-            "source": metadata["source"],
-            "distance": results["distances"][0][i],
-        })
+        if distance <= MAX_DISTANCE:
+            matches.append({
+                "text": document,
+                "source": metadata["source"],
+                "distance": distance,
+            })
 
     return matches
+
 
 
 def list_documents(user_id: int) -> list[dict]:

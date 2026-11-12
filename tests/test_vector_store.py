@@ -1,3 +1,6 @@
+
+from src.rag import vector_store
+
 from src.rag.vector_store import (
     add_documents,
     delete_document,
@@ -93,3 +96,58 @@ def test_users_cannot_access_each_others_documents():
     finally:
         delete_document("private.txt", user_a)
         delete_document("private.txt", user_b)
+
+
+def test_search_filters_irrelevant_results(monkeypatch):
+    user_id = 9201
+    query_called = False
+
+    add_documents(
+        ["Relevant content", "Irrelevant content"],
+        [[0.1] * 768, [0.2] * 768],
+        "test_relevance.txt",
+        user_id,
+    )
+
+    try:
+        stored = vector_store.collection.get(
+            where={"user_id": user_id},
+            include=[],
+        )
+
+        assert len(stored["ids"]) == 2
+
+        def fake_query(**kwargs):
+            nonlocal query_called
+            query_called = True
+
+            return {
+                "documents": [[
+                    "Relevant content",
+                    "Irrelevant content",
+                ]],
+                "metadatas": [[
+                    {"source": "test_relevance.txt", "user_id": user_id},
+                    {"source": "test_relevance.txt", "user_id": user_id},
+                ]],
+                "distances": [[0.5, 0.8]],
+            }
+
+        monkeypatch.setattr(
+            vector_store.collection,
+            "query",
+            fake_query,
+        )
+
+        results = search_documents(
+            [0.1] * 768,
+            user_id=user_id,
+        )
+
+        assert query_called is True
+        assert len(results) == 1
+        assert results[0]["text"] == "Relevant content"
+        assert results[0]["distance"] == 0.5
+
+    finally:
+        delete_document("test_relevance.txt", user_id)
