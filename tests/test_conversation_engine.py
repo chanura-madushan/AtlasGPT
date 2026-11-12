@@ -1,6 +1,5 @@
 from unittest.mock import call, patch
-
-from src.llm.conversation_engine import process_message
+from src.llm.conversation_engine import SYSTEM_PROMPT, process_message
 
 
 @patch("src.llm.conversation_engine.save_message")
@@ -49,32 +48,12 @@ def test_process_message_saves_successful_exchange(
 
     mock_ask_ollama.assert_called_once_with(
         (
-                "You are AtlasGPT, a helpful AI assistant. "
-                "When answering questions about uploaded documents, "
-                "treat the provided document context as the source of truth. "
-                "Only state document-specific facts that are supported "
-                "by the provided context. "
-                "A semantically related passage does not necessarily "
-                "contain the answer. "
-                "If the context does not contain enough evidence to answer, "
-                "clearly say that the information was not found in the "
-                "uploaded documents. "
-                "Never invent missing details or present assumptions "
-                "as document facts. "
-                "Clearly distinguish facts "
-                "explicitly stated in the document "
-                "from your own interpretations or conclusions. "
-                "When providing interpretations or conclusions, "
-                "make it clear that they are your own analysis "
-                "rather than information explicitly stated in the document. "
-                "Use conversation history to understand follow-up questions, "
-                "but never let previous assistant responses override "
-                "the current document evidence."
-                "\n\nDOCUMENT CONTEXT:\n"
-                "Python is a popular programming language."
-                "\n\nUSER QUESTION:\n"
-                "Explain Python"
-         ),
+            f"{SYSTEM_PROMPT}\n\n"
+            "DOCUMENT CONTEXT:\n"
+            "Python is a popular programming language."
+            "\n\nUSER QUESTION:\n"
+            "Explain Python"
+        ),
         history=[
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"},
@@ -122,10 +101,14 @@ def test_process_message_does_not_save_ollama_errors(
 def test_system_prompt_requires_factual_support():
     from src.llm.conversation_engine import SYSTEM_PROMPT
 
-    assert "Only state document-specific facts that are supported" in SYSTEM_PROMPT
+    assert "retrieved document context as your only" in SYSTEM_PROMPT
 
-    assert "Clearly distinguish facts" in SYSTEM_PROMPT
+    assert "directly supports it" in SYSTEM_PROMPT
 
-    assert "rather than information explicitly stated in the document" in SYSTEM_PROMPT
+    assert "Clearly separate document facts from interpretations" in SYSTEM_PROMPT
 
-    assert "Never invent missing details" in SYSTEM_PROMPT
+    assert "Never present an interpretation as an explicit" in SYSTEM_PROMPT
+
+    assert "Do not invent examples, behaviours, intentions" in SYSTEM_PROMPT
+
+    assert "Preserve their original wording whenever possible" in SYSTEM_PROMPT
