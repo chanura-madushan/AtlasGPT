@@ -295,3 +295,49 @@ def test_api_document_isolation_between_users(
 
     assert response.status_code == 200
     assert not (upload_dir / "123" / "private.txt").exists()
+
+
+def test_upload_docx(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    def fake_ingest(file_path, user_id):
+        assert Path(file_path).suffix == ".docx"
+        assert user_id == 123
+        return 2
+
+    monkeypatch.setattr(api_main, "ingest_document", fake_ingest)
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "sample.docx",
+                b"fake docx content",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "sample.docx"
+    assert response.json()["chunks"] == 2
+
+def test_upload_rejects_unsupported_file(client):
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "malware.exe",
+                b"fake executable content",
+                "application/octet-stream",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "Only PDF, TXT, and DOCX files are allowed"
+    }

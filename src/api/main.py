@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".pdf", ".txt"}
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
@@ -161,7 +161,7 @@ async def upload_document(
     if file_extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF and TXT files are allowed",
+            detail="Only PDF, TXT, and DOCX files are allowed",
         )
 
     user_upload_dir = UPLOAD_DIR / str(user_id)

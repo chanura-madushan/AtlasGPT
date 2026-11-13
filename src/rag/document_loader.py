@@ -1,6 +1,7 @@
 
 from pathlib import Path
 from pypdf import PdfReader
+from docx import Document
 
 def load_txt(file_path: str) -> str:
    # Extract text from a TXT file.
@@ -36,6 +37,26 @@ def load_pdf(file_path: str) -> str:
     return "\n".join(pages)
 
 
+def load_docx(file_path: str) -> str:
+    # Extract text from a DOCX file.
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    if path.suffix.lower() != ".docx":
+        raise ValueError("File must be a DOCX file.")
+
+    document = Document(str(path))
+
+    paragraphs = []
+
+    for paragraph in document.paragraphs:
+        if paragraph.text.strip():
+            paragraphs.append(paragraph.text)
+
+    return "\n".join(paragraphs)
+
 
 def load_document(file_path: str) -> str:
     #Load text from a supported document.
@@ -48,4 +69,7 @@ def load_document(file_path: str) -> str:
     if extension == ".pdf":
         return load_pdf(file_path)
 
-    raise ValueError("Unsupported file type. Use PDF or TXT.")
+    if extension == ".docx":
+        return load_docx(file_path)
+
+    raise ValueError("Unsupported file type. Use PDF, TXT, or DOCX.")
