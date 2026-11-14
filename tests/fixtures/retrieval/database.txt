@@ -1,0 +1,1 @@
+A database is an organized collection of information that can be stored, managed, and retrieved. SQL is a language used to communicate with relational databases. Common database operations include inserting, updating, deleting, and querying records. PostgreSQL and MySQL are popular relational database management systems.

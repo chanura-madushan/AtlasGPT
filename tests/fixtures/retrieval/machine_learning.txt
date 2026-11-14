@@ -1,0 +1,1 @@
+Machine learning is a branch of artificial intelligence that allows computers to learn patterns from data. Supervised learning uses labeled examples, while unsupervised learning discovers hidden patterns. Neural networks are commonly used in deep learning. Machine learning is applied in recommendation systems, fraud detection, and image recognition.

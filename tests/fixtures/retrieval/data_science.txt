@@ -1,0 +1,9 @@
+Data science is an interdisciplinary field that uses scientific methods, statistics, programming, and domain knowledge to extract useful information from data.
+
+Python is widely used in data science because it provides libraries such as Pandas for data manipulation, NumPy for numerical operations, and Matplotlib for data visualization.
+
+Data scientists use machine learning techniques to identify patterns, make predictions, and discover relationships in large datasets. Common applications include customer segmentation, sales forecasting, fraud detection, and business intelligence.
+
+Data analysis involves inspecting, cleaning, transforming, and interpreting information. The goal is to discover useful insights that support better decisions.
+
+Data visualization helps communicate findings through charts, graphs, and dashboards. Tools such as Matplotlib, Seaborn, and Power BI are commonly used to present analytical results.
