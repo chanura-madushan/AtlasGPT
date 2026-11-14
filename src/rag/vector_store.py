@@ -52,7 +52,7 @@ def search_documents(
     query_embedding: list[float],
     user_id: int,
     n_results: int = 3,
-    source: str | None = None,
+    source: str | list[str] | None = None,
 ) -> list[dict]:
     """Search only relevant documents belonging to one user."""
 
@@ -64,7 +64,10 @@ def search_documents(
 
     filters = [{"user_id": user_id}]
 
-    if source:
+    if isinstance(source, list):
+        if source:
+            filters.append({"source": {"$in": source}})
+    elif source:
         filters.append({"source": source})
 
     where = (

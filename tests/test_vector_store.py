@@ -151,3 +151,46 @@ def test_search_filters_irrelevant_results(monkeypatch):
 
     finally:
         delete_document("test_relevance.txt", user_id)
+
+
+def test_search_filters_multiple_sources():
+    user_id = 9301
+
+    add_documents(
+        ["Skyler content"],
+        [[1.0] + [0.0] * 767],
+        "skyler.pdf",
+        user_id,
+    )
+
+    add_documents(
+        ["Lee Yerin content"],
+        [[0.8, 0.6] + [0.0] * 766],
+        "lee_yerin.txt",
+        user_id,
+    )
+
+    add_documents(
+        ["Unrelated content"],
+        [[0.0, 0.0, 1.0] + [0.0] * 765],
+        "unrelated.txt",
+        user_id,
+    )
+
+    try:
+        results = search_documents(
+            [1.0] + [0.0] * 767,
+            user_id=user_id,
+            n_results=10,
+            source=["skyler.pdf", "lee_yerin.txt"],
+        )
+
+        sources = {result["source"] for result in results}
+
+        assert len(results) == 2
+        assert sources == {"skyler.pdf", "lee_yerin.txt"}
+
+    finally:
+        delete_document("skyler.pdf", user_id)
+        delete_document("lee_yerin.txt", user_id)
+        delete_document("unrelated.txt", user_id)

@@ -2,6 +2,7 @@
 from src.database.conversation_db import get_history, save_message
 from src.llm.ollama_client import ask_ollama
 from src.rag.retriever import retrieve_context
+from src.rag.vector_store import list_documents
 
 
 SYSTEM_PROMPT = (
@@ -49,17 +50,48 @@ SYSTEM_PROMPT = (
     "from another section. Preserve their original wording "
     "whenever possible. "
 
+    "11. Treat source labels in the document context as the "
+    "origin of each passage. Do not attribute information "
+    "to a document unless that passage supports the claim. "
+
     "Use conversation history to understand follow-up questions, "
     "but never let previous assistant responses override "
     "the retrieved document evidence. "
 
     "ANSWERING STYLE: "
+    "11. When no relevant document context is provided, "
+    "answer general knowledge questions using your own knowledge. "
+    "However, if the user asks about an uploaded document, "
+    "clearly state that no relevant information was retrieved. "
+    "Do not pretend to have read information that was not provided. "
 
     "Be direct, accurate, and concise. "
     "Prioritize evidence over completeness. "
     "If the retrieved context cannot support a detailed "
     "answer, provide a shorter answer rather than guessing."
 )
+
+
+def find_requested_source(
+    message: str,
+    user_id: int,
+) -> list[str]:
+    """Find all uploaded filenames explicitly mentioned in a message."""
+
+    documents = list_documents(user_id)
+
+    message_lower = message.lower()
+
+    requested_sources = []
+
+    for document in documents:
+        filename = document["source"]
+
+        if filename.lower() in message_lower:
+            requested_sources.append(filename)
+
+    return requested_sources
+
 
 
 def process_message(
@@ -76,13 +108,20 @@ def process_message(
         conversation_id=conversation_id,
     )
 
+    requested_source = find_requested_source(
+    message,
+    user_id,
+    )
+
     retrieved_chunks = retrieve_context(
         message,
         user_id=user_id,
+        source=requested_source,
     )
 
     document_context = "\n\n".join(
-        result["text"] for result in retrieved_chunks
+    f"[Source: {result['source']}]\n{result['text']}"
+    for result in retrieved_chunks
     )
 
     prompt = (

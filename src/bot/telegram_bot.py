@@ -134,7 +134,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         or update.message.text is None
     ):
         return
-
     user_id = update.effective_user.id
     user_message = update.message.text
 

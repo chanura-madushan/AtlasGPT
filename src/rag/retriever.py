@@ -7,7 +7,7 @@ def retrieve_context(
     question: str,
     user_id: int,
     n_results: int = 3,
-    source: str | None = None,
+    source: str | list[str] | None = None,
 ) -> list[dict]:
     """Retrieve relevant document chunks belonging to one user."""
 
