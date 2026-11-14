@@ -66,3 +66,34 @@ def test_retrieve_context_searches_documents(
         n_results=3,
         source=None,
     )
+
+@patch("src.rag.retriever.embed_texts")
+def test_retrieve_context_rejects_empty_embedding_response(
+    mock_embed_texts,
+):
+    mock_embed_texts.return_value = []
+
+    with pytest.raises(
+        ValueError,
+        match="No embedding was returned for the question",
+    ):
+        retrieve_context(
+            question="What is AI?",
+            user_id=1,
+        )
+
+
+@patch("src.rag.retriever.embed_texts")
+def test_retrieve_context_rejects_invalid_embedding_response(
+    mock_embed_texts,
+):
+    mock_embed_texts.return_value = [[]]
+
+    with pytest.raises(
+        ValueError,
+        match="The question embedding is invalid",
+    ):
+        retrieve_context(
+            question="What is AI?",
+            user_id=1,
+        )

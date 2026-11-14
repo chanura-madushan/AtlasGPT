@@ -20,7 +20,15 @@ def retrieve_context(
     if n_results <= 0:
         raise ValueError("n_results must be greater than zero.")
 
-    query_embedding = embed_texts([question])[0]
+    embeddings = embed_texts([question])
+
+    if not embeddings:
+        raise ValueError("No embedding was returned for the question.")
+
+    query_embedding = embeddings[0]
+
+    if not isinstance(query_embedding, list) or not query_embedding:
+        raise ValueError("The question embedding is invalid.")
 
     return search_documents(
         query_embedding,
