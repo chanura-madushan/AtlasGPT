@@ -4,7 +4,7 @@ from pathlib import Path
 from src.rag.document_loader import load_document
 from src.rag.chunker import split_text
 from src.rag.embeddings import embed_texts
-from src.rag.vector_store import add_documents, delete_document
+from src.rag.vector_store import add_documents
 
 
 def ingest_document(file_path: str, user_id: int) -> int:
@@ -21,8 +21,6 @@ def ingest_document(file_path: str, user_id: int) -> int:
         raise ValueError("The document contains no extractable text.")
 
     embeddings = embed_texts(chunks)
-
-    delete_document(path.name, user_id)
     add_documents(chunks, embeddings, path.name, user_id)
 
     return len(chunks)

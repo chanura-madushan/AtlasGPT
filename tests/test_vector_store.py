@@ -213,3 +213,82 @@ def test_search_returns_empty_when_user_has_no_documents(monkeypatch):
     )
 
     assert results == []
+
+def test_replacing_document_removes_old_chunks():
+    user_id = 9501
+    source = "replacement_test.txt"
+
+    try:
+        add_documents(
+            ["Old chunk 1", "Old chunk 2", "Old chunk 3"],
+            [[0.1] * 768 for _ in range(3)],
+            source,
+            user_id,
+        )
+
+        add_documents(
+            ["New chunk 1"],
+            [[0.2] * 768],
+            source,
+            user_id,
+        )
+
+        stored = vector_store.collection.get(
+            where={
+                "$and": [
+                    {"user_id": user_id},
+                    {"source": source},
+                ]
+            },
+            include=["documents"],
+        )
+
+        assert stored["documents"] == ["New chunk 1"]
+        assert len(stored["ids"]) == 1
+
+    finally:
+        delete_document(source, user_id)
+
+def test_failed_replacement_preserves_old_document(monkeypatch):
+    user_id = 9601
+    source = "failed_replacement.txt"
+
+    add_documents(
+        ["Original document content"],
+        [[0.1] * 768],
+        source,
+        user_id,
+    )
+
+    def failing_upsert(**kwargs):
+        raise RuntimeError("Simulated ChromaDB failure")
+
+    try:
+        monkeypatch.setattr(
+            vector_store.collection,
+            "upsert",
+            failing_upsert,
+        )
+
+        with pytest.raises(RuntimeError):
+            add_documents(
+                ["Updated document content"],
+                [[0.2] * 768],
+                source,
+                user_id,
+            )
+
+        stored = vector_store.collection.get(
+            where={
+                "$and": [
+                    {"user_id": user_id},
+                    {"source": source},
+                ]
+            },
+            include=["documents"],
+        )
+
+        assert stored["documents"] == ["Original document content"]
+
+    finally:
+        delete_document(source, user_id)

@@ -4,6 +4,7 @@ from pathlib import Path
 
 CHROMA_DIR = Path("data/chroma")
 MAX_DISTANCE = 0.7
+
 CHROMA_DIR.mkdir(parents=True, exist_ok=True)
 
 client = chromadb.PersistentClient(path=str(CHROMA_DIR))
@@ -36,6 +37,18 @@ def add_documents(
         for i in range(len(chunks))
     ]
 
+    # Get existing chunk IDs for this user's document.
+    existing_ids = collection.get(
+        where={
+            "$and": [
+                {"source": source},
+                {"user_id": user_id},
+            ]
+        },
+        include=[],
+    )["ids"]
+
+    # Insert new chunks or update existing ones.
     collection.upsert(
         ids=ids,
         documents=chunks,
@@ -46,6 +59,14 @@ def add_documents(
         ],
     )
 
+    # Remove chunks that are no longer needed.
+    obsolete_ids = [
+        doc_id for doc_id in existing_ids
+        if doc_id not in ids
+    ]
+
+    if obsolete_ids:
+        collection.delete(ids=obsolete_ids)
 
 
 def search_documents(
@@ -106,7 +127,6 @@ def search_documents(
             })
 
     return matches
-
 
 
 def list_documents(user_id: int) -> list[dict]:

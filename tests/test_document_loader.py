@@ -37,8 +37,7 @@ def test_ingest_docx(tmp_path):
     document.save(file_path)
 
     with patch("src.rag.ingest.embed_texts") as mock_embed, \
-         patch("src.rag.ingest.add_documents") as mock_add, \
-         patch("src.rag.ingest.delete_document"):
+        patch("src.rag.ingest.add_documents") as mock_add:
 
         mock_embed.return_value = [[0.1] * 768]
 
