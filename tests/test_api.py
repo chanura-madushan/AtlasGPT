@@ -341,3 +341,167 @@ def test_upload_rejects_unsupported_file(client):
     assert response.json() == {
         "detail": "Only PDF, TXT, and DOCX files are allowed"
     }
+
+def test_upload_rejects_empty_file(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "empty.txt",
+                b"",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "detail": "The uploaded file is empty"
+    }
+
+    assert not (upload_dir / "123" / "empty.txt").exists()
+
+def test_upload_rejects_oversized_file(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    oversized_content = b"a" * (api_main.MAX_FILE_SIZE + 1)
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "large.txt",
+                oversized_content,
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 413
+    assert response.json() == {
+        "detail": "File size must not exceed 10 MB"
+    }
+
+    assert not (upload_dir / "123" / "large.txt").exists()
+
+def test_upload_rejects_duplicate_filename(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    def fake_ingest(file_path, user_id):
+        return 1
+
+    monkeypatch.setattr(api_main, "ingest_document", fake_ingest)
+
+    upload_data = {
+        "file": (
+            "sample.txt",
+            b"Original document content",
+            "text/plain",
+        )
+    }
+
+    first_response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files=upload_data,
+    )
+
+    second_response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files=upload_data,
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 409
+
+    saved_file = upload_dir / "123" / "sample.txt"
+    assert saved_file.read_bytes() == b"Original document content"
+
+def test_upload_cleans_file_after_ingestion_failure(
+    client, tmp_path, monkeypatch
+):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    def fake_ingest(file_path, user_id):
+        raise ValueError("Document processing failed")
+
+    monkeypatch.setattr(api_main, "ingest_document", fake_ingest)
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "broken.txt",
+                b"Some document content",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "Document upload or processing failed"
+    }
+
+    assert not (upload_dir / "123" / "broken.txt").exists()
+
+def test_upload_rejects_corrupted_pdf(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "broken.pdf",
+                b"This is not a valid PDF file",
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": "Document upload or processing failed"
+    }
+
+    assert not (upload_dir / "123" / "broken.pdf").exists()
+
+def test_upload_prevents_path_traversal(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    monkeypatch.setattr(
+        api_main,
+        "ingest_document",
+        lambda file_path, user_id: 1,
+    )
+
+    response = client.post(
+        "/documents/upload",
+        headers=client.headers,
+        files={
+            "file": (
+                "../../outside.txt",
+                b"Safe document content",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "outside.txt"
+
+    assert (upload_dir / "123" / "outside.txt").exists()
+    assert not (tmp_path / "outside.txt").exists()

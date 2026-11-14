@@ -1,6 +1,7 @@
 from unittest.mock import call, patch
 from src.llm.conversation_engine import SYSTEM_PROMPT, process_message
 from src.llm.conversation_engine import find_requested_source
+import pytest
 
 @patch("src.llm.conversation_engine.save_message")
 @patch("src.llm.conversation_engine.ask_ollama")
@@ -242,3 +243,26 @@ def test_find_requested_source_matches_multiple_filenames(mock_list_documents):
         "Skyler_Character_Bible_v1.0.pdf",
         "lee_yerin_character_profile.txt",
     ]
+
+def test_process_message_does_not_save_when_retrieval_fails():
+    with patch(
+        "src.llm.conversation_engine.get_history",
+        return_value=[],
+    ), patch(
+        "src.llm.conversation_engine.list_documents",
+        return_value=[],
+    ), patch(
+        "src.llm.conversation_engine.retrieve_context",
+        side_effect=RuntimeError("Retrieval failed"),
+    ), patch(
+        "src.llm.conversation_engine.save_message",
+    ) as mock_save:
+
+        with pytest.raises(RuntimeError, match="Retrieval failed"):
+            process_message(
+                user_id=123,
+                conversation_id="test-chat",
+                message="Explain AI",
+            )
+
+        mock_save.assert_not_called()

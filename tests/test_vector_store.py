@@ -1,4 +1,4 @@
-
+import pytest
 from src.rag import vector_store
 
 from src.rag.vector_store import (
@@ -194,3 +194,22 @@ def test_search_filters_multiple_sources():
         delete_document("skyler.pdf", user_id)
         delete_document("lee_yerin.txt", user_id)
         delete_document("unrelated.txt", user_id)
+
+def test_search_returns_empty_when_user_has_no_documents(monkeypatch):
+    user_id = 9401
+
+    def unexpected_query(**kwargs):
+        pytest.fail("ChromaDB query should not run when no documents exist")
+
+    monkeypatch.setattr(
+        vector_store.collection,
+        "query",
+        unexpected_query,
+    )
+
+    results = search_documents(
+        [0.1] * 768,
+        user_id=user_id,
+    )
+
+    assert results == []
