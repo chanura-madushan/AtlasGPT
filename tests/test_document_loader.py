@@ -1,8 +1,8 @@
 from unittest.mock import patch
-
+import pytest
 from docx import Document
 
-from src.rag.document_loader import load_docx, load_document
+from src.rag.document_loader import load_docx, load_document, load_pdf
 from src.rag.ingest import ingest_document
 def test_load_docx(tmp_path):
     file_path = tmp_path / "sample.docx"
@@ -47,3 +47,17 @@ def test_ingest_docx(tmp_path):
     assert result == 1
     mock_embed.assert_called_once()
     mock_add.assert_called_once()
+
+def test_load_pdf_rejects_invalid_file(tmp_path):
+    file_path = tmp_path / "fake.pdf"
+    file_path.write_bytes(b"This is not a PDF file.")
+
+    with pytest.raises(ValueError, match="Invalid PDF file"):
+        load_pdf(str(file_path))
+
+def test_load_docx_rejects_invalid_file(tmp_path):
+    file_path = tmp_path / "fake.docx"
+    file_path.write_bytes(b"This is not a DOCX file.")
+
+    with pytest.raises(ValueError, match="Invalid DOCX file"):
+        load_docx(str(file_path))

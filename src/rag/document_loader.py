@@ -2,6 +2,7 @@
 from pathlib import Path
 from pypdf import PdfReader
 from docx import Document
+from zipfile import BadZipFile, ZipFile
 
 def load_txt(file_path: str) -> str:
    # Extract text from a TXT file.
@@ -26,6 +27,12 @@ def load_pdf(file_path: str) -> str:
     if path.suffix.lower() != ".pdf":
         raise ValueError("File must be a PDF file.")
 
+    with path.open("rb") as file:
+        header = file.read(1024)
+
+    if b"%PDF-" not in header:
+        raise ValueError("Invalid PDF file.")
+
     reader = PdfReader(str(path))
     pages = []
 
@@ -46,6 +53,12 @@ def load_docx(file_path: str) -> str:
 
     if path.suffix.lower() != ".docx":
         raise ValueError("File must be a DOCX file.")
+    try:
+        with ZipFile(path) as docx_file:
+            if "word/document.xml" not in docx_file.namelist():
+                raise ValueError("Invalid DOCX file.")
+    except BadZipFile:
+        raise ValueError("Invalid DOCX file.")
 
     document = Document(str(path))
 
