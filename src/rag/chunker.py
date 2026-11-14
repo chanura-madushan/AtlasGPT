@@ -1,6 +1,9 @@
 
+import re
+
+
 def split_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
-    #Split text into smaller chunks with a small overlap.
+    """Split text into sentence-aware chunks while preserving paragraphs."""
 
     if chunk_size <= 0:
         raise ValueError("chunk_size must be greater than zero.")
@@ -13,17 +16,68 @@ def split_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]
     if not text:
         return []
 
+    paragraphs = re.split(r"\n\s*\n", text)
     chunks = []
-    start = 0
 
-    while start < len(text):
-        end = start + chunk_size
-        chunk = text[start:end]
-        chunks.append(chunk)
+    for paragraph in paragraphs:
+        sentences = re.split(r"(?<=[.!?])\s+", paragraph.strip())
+        current_sentences = []
 
-        if end >= len(text):
-            break
+        for sentence in sentences:
+            if len(sentence) > chunk_size:
+                if current_sentences:
+                    chunks.append(" ".join(current_sentences))
+                    current_sentences = []
 
-        start = end - overlap
+                words = sentence.split()
+                current_words = []
+                step = chunk_size - overlap
+
+                for word in words:
+                    if len(word) > chunk_size:
+                        if current_words:
+                            chunks.append(" ".join(current_words))
+                            current_words = []
+
+                        for start in range(0, len(word), step):
+                            chunks.append(word[start:start + chunk_size])
+
+                        continue
+
+                    candidate = " ".join(current_words + [word])
+
+                    if len(candidate) <= chunk_size:
+                        current_words.append(word)
+                    else:
+                        if current_words:
+                            chunks.append(" ".join(current_words))
+
+                        current_words = [word]
+
+                if current_words:
+                    chunks.append(" ".join(current_words))
+
+                continue
+
+            candidate = " ".join(current_sentences + [sentence])
+
+            if len(candidate) <= chunk_size:
+                current_sentences.append(sentence)
+            else:
+                if current_sentences:
+                    chunks.append(" ".join(current_sentences))
+
+                if overlap > 0 and current_sentences:
+                    last_sentence = current_sentences[-1]
+
+                    if len(last_sentence) + 1 + len(sentence) <= chunk_size:
+                        current_sentences = [last_sentence, sentence]
+                    else:
+                        current_sentences = [sentence]
+                else:
+                    current_sentences = [sentence]
+
+        if current_sentences:
+            chunks.append(" ".join(current_sentences))
 
     return chunks
