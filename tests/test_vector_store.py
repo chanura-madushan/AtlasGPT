@@ -56,14 +56,14 @@ def test_users_cannot_access_each_others_documents():
 
     add_documents(
         ["Private document belonging to A"],
-        [[0.1] * 768],
+        [[1.0] + [0.0] * 767],
         "private.txt",
         user_a,
     )
 
     add_documents(
         ["Private document belonging to B"],
-        [[0.9] * 768],
+        [[0.0, 1.0] + [0.0] * 766],
         "private.txt",
         user_b,
     )
@@ -76,12 +76,12 @@ def test_users_cannot_access_each_others_documents():
         assert len(documents_b) == 1
 
         results_a = search_documents(
-            [0.1] * 768,
+            [1.0] + [0.0] * 767,
             user_id=user_a,
         )
 
         results_b = search_documents(
-            [0.9] * 768,
+            [0.0, 1.0] + [0.0] * 766,
             user_id=user_b,
         )
 
