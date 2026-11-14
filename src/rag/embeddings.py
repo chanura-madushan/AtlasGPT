@@ -27,5 +27,20 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
     response.raise_for_status()
 
-    data = response.json()
-    return data["embeddings"]
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise ValueError("Ollama returned an invalid JSON response.") from exc
+
+    if not isinstance(data, dict) or "embeddings" not in data:
+        raise ValueError("Ollama response does not contain embeddings.")
+
+    embeddings = data["embeddings"]
+
+    if not isinstance(embeddings, list):
+        raise ValueError("Ollama returned invalid embeddings.")
+
+    if len(embeddings) != len(texts):
+        raise ValueError("Ollama returned an unexpected number of embeddings.")
+
+    return embeddings
