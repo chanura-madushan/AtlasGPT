@@ -505,3 +505,46 @@ def test_upload_prevents_path_traversal(client, tmp_path, monkeypatch):
 
     assert (upload_dir / "123" / "outside.txt").exists()
     assert not (tmp_path / "outside.txt").exists()
+
+
+def test_revoke_api_credential_success(client):
+    response = client.delete(
+        "/credentials",
+        headers=client.headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "API credential revoked successfully"
+    }
+
+    # The revoked key must no longer authenticate.
+    protected_response = client.get(
+        "/documents",
+        headers=client.headers,
+    )
+
+    assert protected_response.status_code == 401
+
+
+def test_revoke_api_credential_with_invalid_key(client):
+    response = client.delete(
+        "/credentials",
+        headers={"Authorization": "Bearer wrong-key"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_revoke_already_revoked_credential(client):
+    client.delete(
+        "/credentials",
+        headers=client.headers,
+    )
+
+    response = client.delete(
+        "/credentials",
+        headers=client.headers,
+    )
+
+    assert response.status_code == 401

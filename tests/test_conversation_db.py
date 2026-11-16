@@ -138,3 +138,53 @@ def test_invalid_api_key_returns_none(tmp_path, monkeypatch):
     init_db()
 
     assert get_user_by_api_key("invalid-key") is None
+
+
+
+def test_api_credential_can_be_revoked(tmp_path, monkeypatch):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    api_key = create_api_credential(123)
+
+    conversation_db.revoke_api_credential(123)
+
+    assert get_user_by_api_key(api_key) is None
+
+
+def test_revoking_nonexistent_api_credential_returns_false(
+    tmp_path, monkeypatch
+):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    result = conversation_db.revoke_api_credential(999)
+
+    assert result is False
+
+
+def test_revoked_api_key_can_be_replaced(tmp_path, monkeypatch):
+    from src.database import conversation_db
+
+    test_db = tmp_path / "test_credentials.db"
+    monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+
+    init_db()
+
+    old_key = create_api_credential(123)
+    conversation_db.revoke_api_credential(123)
+
+    new_key = create_api_credential(123)
+
+    assert get_user_by_api_key(old_key) is None
+    assert get_user_by_api_key(new_key) == 123
+
+

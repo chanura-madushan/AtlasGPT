@@ -133,6 +133,19 @@ def get_user_by_api_key(api_key: str) -> int | None:
     return result[0] if result else None
 
 
+def revoke_api_credential(user_id: int) -> bool:
+    """Revoke the API credential belonging to a user."""
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.execute(
+            "DELETE FROM api_credentials WHERE user_id = ?",
+            (user_id,),
+        )
+
+    return cursor.rowcount > 0
+
+
+
 
 if __name__ == "__main__":
     init_db()

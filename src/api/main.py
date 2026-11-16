@@ -11,14 +11,14 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
-
-from src.database.conversation_db import (
-    init_db,
-    get_user_by_api_key,
-)
 from src.llm.conversation_engine import process_message
 from src.rag.ingest import ingest_document
 from src.rag.vector_store import list_documents, delete_document
+from src.database.conversation_db import (
+    init_db,
+    get_user_by_api_key,
+    revoke_api_credential,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,6 @@ def require_api_key(
 
     return user_id
 
-
 # --------------------------------------------------
 # Database Startup
 # --------------------------------------------------
@@ -81,6 +80,19 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+@app.delete("/credentials")
+def revoke_credential(
+    user_id: int = Depends(require_api_key),
+):
+    revoked = revoke_api_credential(user_id)
+
+    if not revoked:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API credential not found",
+        )
+
+    return {"message": "API credential revoked successfully"}
 
 
 # --------------------------------------------------
