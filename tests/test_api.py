@@ -17,7 +17,7 @@ def client(tmp_path, monkeypatch):
 
     test_db = tmp_path / "test_api.db"
     monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
-
+    api_main.user_requests.clear()
     with TestClient(app) as test_client:
         api_key = conversation_db.create_api_credential(123)
 
@@ -548,3 +548,37 @@ def test_revoke_already_revoked_credential(client):
     )
 
     assert response.status_code == 401
+
+
+def test_rate_limit_allows_30_requests(client):
+    for _ in range(30):
+        response = client.get("/documents")
+        assert response.status_code == 200
+
+
+def test_rate_limit_blocks_31st_request(client):
+    for _ in range(30):
+        client.get("/documents")
+
+    response = client.get("/documents")
+
+    assert response.status_code == 429
+    assert response.json() == {
+        "detail": "Rate limit exceeded. Try again later."
+    }
+
+
+def test_rate_limit_is_independent_per_user(client):
+    from src.database.conversation_db import create_api_credential
+
+    for _ in range(30):
+        client.get("/documents")
+
+    second_user_key = create_api_credential(456)
+
+    response = client.get(
+        "/documents",
+        headers={"Authorization": f"Bearer {second_user_key}"},
+    )
+
+    assert response.status_code == 200

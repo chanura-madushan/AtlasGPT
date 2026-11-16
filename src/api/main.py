@@ -1,4 +1,7 @@
 import logging
+import time
+from collections import defaultdict, deque
+from threading import Lock
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import (
@@ -27,7 +30,11 @@ logger = logging.getLogger(__name__)
 # Configuration
 # --------------------------------------------------
 
+RATE_LIMIT = 30
+RATE_WINDOW = 60
 
+user_requests = defaultdict(deque)
+rate_limit_lock = Lock()
 
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -62,7 +69,28 @@ def require_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    check_rate_limit(user_id)
+
     return user_id
+
+
+def check_rate_limit(user_id: int) -> None:
+    now = time.monotonic()
+
+    with rate_limit_lock:
+        requests = user_requests[user_id]
+
+        while requests and now - requests[0] >= RATE_WINDOW:
+            requests.popleft()
+
+        if len(requests) >= RATE_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. Try again later.",
+            )
+
+        requests.append(now)
+
 
 # --------------------------------------------------
 # Database Startup
