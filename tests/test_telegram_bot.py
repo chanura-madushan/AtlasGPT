@@ -429,3 +429,19 @@ async def test_handle_document_supports_other_formats(
     mock_ingest.assert_called_once_with(str(uploaded_file), 456)
 
     assert update.message.reply_text.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_handle_message_handles_unexpected_exception():
+    update = make_update(123, "Hello")
+    context = make_context()
+
+    with patch(
+        "src.bot.telegram_bot.process_message",
+        side_effect=RuntimeError("Unexpected failure"),
+    ):
+        await handle_message(update, context)
+
+    update.message.reply_text.assert_awaited_once_with(
+        "AtlasGPT is temporarily unavailable. Please try again shortly."
+    )

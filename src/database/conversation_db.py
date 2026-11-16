@@ -1,10 +1,10 @@
+
 import hashlib
 import secrets
 import sqlite3
 from pathlib import Path
 
 DATABASE_PATH = Path(__file__).resolve().parents[2] / "data" / "atlasgpt.db"
-
 
 
 def init_db():
@@ -31,6 +31,7 @@ def init_db():
             )
         """)
 
+        # Check whether an existing database needs migration.
         columns = connection.execute(
             "PRAGMA table_info(conversation_messages)"
         ).fetchall()
@@ -43,6 +44,11 @@ def init_db():
                 "ADD COLUMN conversation_id TEXT"
             )
 
+        # Create the index only after the migration.
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_messages_user_conversation
+            ON conversation_messages (user_id, conversation_id, id)
+        """)
 
 
 def save_message(
@@ -91,14 +97,12 @@ def get_history(
     ]
 
 
-
 def clear_history(user_id: int):
     with sqlite3.connect(DATABASE_PATH) as connection:
         connection.execute(
             "DELETE FROM conversation_messages WHERE user_id = ?",
             (user_id,),
         )
-
 
 
 def create_api_credential(user_id: int) -> str:
@@ -143,8 +147,6 @@ def revoke_api_credential(user_id: int) -> bool:
         )
 
     return cursor.rowcount > 0
-
-
 
 
 if __name__ == "__main__":

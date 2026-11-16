@@ -55,4 +55,25 @@ def test_ask_ollama_http_error(mock_post):
 
     answer = ask_ollama("Test prompt")
 
-    assert answer.startswith("Error communicating with Ollama:")
+    assert answer == "Error: Could not communicate with Ollama."
+
+@patch("src.llm.ollama_client.requests.post")
+def test_ask_ollama_missing_response(mock_post):
+    mock_response = Mock()
+    mock_response.json.return_value = {"other": "value"}
+    mock_post.return_value = mock_response
+
+    answer = ask_ollama("Test prompt")
+
+    assert answer == "Error: Ollama returned an invalid response."
+
+
+@patch("src.llm.ollama_client.requests.post")
+def test_ask_ollama_invalid_json(mock_post):
+    mock_response = Mock()
+    mock_response.json.side_effect = ValueError("Invalid JSON")
+    mock_post.return_value = mock_response
+
+    answer = ask_ollama("Test prompt")
+
+    assert answer == "Error: Ollama returned an invalid response."

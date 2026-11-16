@@ -2,7 +2,7 @@
 import asyncio
 import os
 from pathlib import Path
-
+import logging
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
@@ -20,7 +20,7 @@ from src.rag.ingest import ingest_document
 load_dotenv()
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
+logger = logging.getLogger(__name__)
 
 def get_history_limit() -> int:
     try:
@@ -140,13 +140,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     conversation_id = f"telegram-{chat_id}"
 
-    answer = await asyncio.to_thread(
-        process_message,
-        user_id=user_id,
-        conversation_id=conversation_id,
-        message=user_message,
-        history_limit=CONVERSATION_HISTORY_LIMIT,
-    )
+    try:
+        answer = await asyncio.to_thread(
+            process_message,
+            user_id=user_id,
+            conversation_id=conversation_id,
+            message=user_message,
+            history_limit=CONVERSATION_HISTORY_LIMIT,
+        )
+
+    except Exception:
+        logger.exception("Message processing failed")
+
+        await update.message.reply_text(
+            "AtlasGPT is temporarily unavailable. Please try again shortly."
+        )
+        return
 
     if answer.startswith("Error:"):
         await update.message.reply_text(
