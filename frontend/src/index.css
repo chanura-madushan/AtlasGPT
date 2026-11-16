@@ -1,0 +1,54 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+  --color-atlas-cyan: #0593C6;
+  --color-atlas-magenta: #D83995;
+  --color-atlas-pearl: #FCFFFF;
+  --color-atlas-navy: #102B3A;
+  --color-atlas-cloud: #F3F8FA;
+  --color-atlas-mist: #E3EDF1;
+  --color-atlas-slate: #607783;
+  --color-atlas-deep-cyan: #006F96;
+
+  --font-heading: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
+}
+
+:root {
+  font-family: var(--font-body);
+  color: var(--color-atlas-navy);
+  background: var(--color-atlas-pearl);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  color: white;
+  background: var(--color-atlas-cyan);
+}
