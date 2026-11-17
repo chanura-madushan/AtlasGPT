@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from collections import defaultdict, deque
 from threading import Lock
@@ -21,8 +22,15 @@ from src.database.conversation_db import (
     init_db,
     get_user_by_api_key,
     revoke_api_credential,
+    create_web_account,
+    authenticate_web_account,
+    create_web_session,
+    get_user_by_session,
+    revoke_web_session,
 )
-
+from fastapi import Response
+from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 RATE_LIMIT = 30
 RATE_WINDOW = 60
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
 user_requests = defaultdict(deque)
 rate_limit_lock = Lock()
@@ -44,11 +53,65 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 security = HTTPBearer(auto_error=False)
+def require_trusted_origin(request: Request) -> None:
+    origin = request.headers.get("origin")
+
+    if origin != FRONTEND_ORIGIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Untrusted request origin",
+        )
 
 
 # --------------------------------------------------
 # API Key Authentication
 # --------------------------------------------------
+
+def require_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> int:
+    # First, check for an API key.
+    if credentials is not None:
+        user_id = get_user_by_api_key(credentials.credentials)
+
+        if user_id is not None:
+            check_rate_limit(user_id)
+            return user_id
+
+    # If no valid API key, check the browser session.
+    session_token = request.cookies.get("atlasgpt_session")
+
+    if session_token:
+        require_trusted_origin(request)
+        user_id = get_user_by_session(session_token)
+
+        if user_id is not None:
+            check_rate_limit(user_id)
+            return user_id
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing authentication",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+def check_rate_limit(user_id: int) -> None:
+    now = time.monotonic()
+
+    with rate_limit_lock:
+        requests = user_requests[user_id]
+
+        while requests and now - requests[0] >= RATE_WINDOW:
+            requests.popleft()
+
+        if len(requests) >= RATE_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. Try again later.",
+            )
+
+        requests.append(now)
 
 def require_api_key(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
@@ -70,26 +133,9 @@ def require_api_key(
         )
 
     check_rate_limit(user_id)
-
     return user_id
 
 
-def check_rate_limit(user_id: int) -> None:
-    now = time.monotonic()
-
-    with rate_limit_lock:
-        requests = user_requests[user_id]
-
-        while requests and now - requests[0] >= RATE_WINDOW:
-            requests.popleft()
-
-        if len(requests) >= RATE_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit exceeded. Try again later.",
-            )
-
-        requests.append(now)
 
 
 # --------------------------------------------------
@@ -108,7 +154,18 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+FRONTEND_ORIGIN = "http://localhost:5173"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_ORIGIN],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 @app.delete("/credentials")
+
 def revoke_credential(
     user_id: int = Depends(require_api_key),
 ):
@@ -121,6 +178,23 @@ def revoke_credential(
         )
 
     return {"message": "API credential revoked successfully"}
+
+# --------------------------------------------------
+# Register Request
+# --------------------------------------------------
+
+class RegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=8)
+
+
+# --------------------------------------------------
+# Login Request
+# --------------------------------------------------
+
+class LoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1)
 
 
 # --------------------------------------------------
@@ -154,6 +228,122 @@ class ChatRequest(BaseModel):
 def home():
     return {"message": "AtlasGPT API is running"}
 
+# --------------------------------------------------
+# Register
+# --------------------------------------------------
+
+@app.post(
+    "/auth/register",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_trusted_origin)],
+)
+def register(request: RegisterRequest):
+    try:
+        create_web_account(
+            email=request.email,
+            password=request.password,
+        )
+
+        return {
+            "message": "Account created successfully"
+        }
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(error),
+        ) from error
+
+
+# --------------------------------------------------
+# Login
+# --------------------------------------------------
+
+
+@app.post(
+    "/auth/login",
+    dependencies=[Depends(require_trusted_origin)],
+)
+def login(request: LoginRequest, response: Response):
+    user_id = authenticate_web_account(
+        email=request.email,
+        password=request.password,
+    )
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    session_token = create_web_session(user_id)
+
+    response.set_cookie(
+        key="atlasgpt_session",
+        value=session_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=24 * 60 * 60,
+        path="/",
+    )
+
+    return {
+        "message": "Login successful"
+    }
+
+
+
+
+
+@app.get("/auth/me")
+def get_current_user(request: Request):
+    session_token = request.cookies.get("atlasgpt_session")
+
+    if not session_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    user_id = get_user_by_session(session_token)
+
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session is invalid or expired",
+        )
+
+    return {
+        "user_id": user_id,
+        "authenticated": True,
+    }
+
+
+
+
+@app.post(
+    "/auth/logout",
+    dependencies=[Depends(require_trusted_origin)],
+)
+def logout(request: Request, response: Response):
+    session_token = request.cookies.get("atlasgpt_session")
+
+    if session_token:
+        revoke_web_session(session_token)
+
+    response.delete_cookie(
+        key="atlasgpt_session",
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+    )
+
+    return {
+        "message": "Logout successful"
+    }
+
 
 # --------------------------------------------------
 # Chat Endpoint
@@ -162,7 +352,7 @@ def home():
 @app.post("/chat")
 def chat(
     request: ChatRequest,
-    user_id: int = Depends(require_api_key),
+    user_id: int = Depends(require_user),
 ):
     answer = process_message(
         user_id=user_id,
@@ -186,7 +376,7 @@ def chat(
 @app.post("/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    user_id: int = Depends(require_api_key),
+    user_id: int = Depends(require_user),
 ):
     if not file.filename:
         raise HTTPException(
@@ -258,7 +448,7 @@ async def upload_document(
 
 @app.get("/documents")
 def get_documents(
-    user_id: int = Depends(require_api_key),
+    user_id: int = Depends(require_user),
 ):
     return {
         "documents": list_documents(user_id),
@@ -272,7 +462,7 @@ def get_documents(
 @app.delete("/documents/{filename}")
 def remove_document(
     filename: str,
-    user_id: int = Depends(require_api_key),
+    user_id: int = Depends(require_user),
 ):
     if Path(filename).name != filename or filename in {".", ".."}:
         raise HTTPException(

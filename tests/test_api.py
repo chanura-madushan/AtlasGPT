@@ -22,7 +22,8 @@ def client(tmp_path, monkeypatch):
         api_key = conversation_db.create_api_credential(123)
 
         test_client.headers.update({
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {api_key}",
+            "Origin": "http://localhost:5173",
         })
 
         yield test_client
@@ -48,6 +49,50 @@ def test_chat_rejects_missing_api_key(client):
     assert response.status_code == 401
 
 
+def test_chat_rejects_untrusted_browser_origin(client):
+    from src.database import conversation_db
+
+    user_id = conversation_db.create_web_account(
+        email="csrf@example.com",
+        password="securepassword123",
+    )
+
+    session_token = conversation_db.create_web_session(user_id)
+
+    # Remove API-key authentication so the browser session is tested.
+    client.headers.pop("Authorization", None)
+
+    client.cookies.set("atlasgpt_session", session_token)
+
+    response = client.get(
+        "/documents",
+        headers={"Origin": "https://evil.example"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Untrusted request origin"
+
+
+def test_session_request_rejects_missing_origin(client):
+    from src.database import conversation_db
+
+    user_id = conversation_db.create_web_account(
+        email="missing-origin@example.com",
+        password="securepassword123",
+    )
+
+    session_token = conversation_db.create_web_session(user_id)
+
+    client.headers.pop("Authorization", None)
+    client.headers.pop("Origin", None)
+    client.cookies.set("atlasgpt_session", session_token)
+
+    response = client.get("/documents")
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Untrusted request origin"
+
+
 def test_chat_rejects_invalid_api_key(client):
     response = client.post(
         "/chat",
@@ -59,6 +104,51 @@ def test_chat_rejects_invalid_api_key(client):
     )
 
     assert response.status_code == 401
+
+def test_api_key_authentication_does_not_require_origin(client):
+    client.headers.pop("Origin", None)
+
+    response = client.get("/documents")
+
+    assert response.status_code == 200
+
+
+def test_register_rejects_untrusted_origin(client):
+    response = client.post(
+        "/auth/register",
+        headers={"Origin": "https://evil.example"},
+        json={
+            "email": "attacker@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Untrusted request origin"
+
+
+def test_login_rejects_untrusted_origin(client):
+    response = client.post(
+        "/auth/login",
+        headers={"Origin": "https://evil.example"},
+        json={
+            "email": "user@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Untrusted request origin"
+
+
+def test_logout_rejects_untrusted_origin(client):
+    response = client.post(
+        "/auth/logout",
+        headers={"Origin": "https://evil.example"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Untrusted request origin"
 
 
 @patch("src.api.main.process_message")
@@ -582,3 +672,327 @@ def test_rate_limit_is_independent_per_user(client):
     )
 
     assert response.status_code == 200
+
+def test_register_account_success(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "test@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "message": "Account created successfully"
+    }
+
+
+def test_register_rejects_duplicate_email(client):
+    payload = {
+        "email": "test@example.com",
+        "password": "securepassword123",
+    }
+
+    first_response = client.post("/auth/register", json=payload)
+    second_response = client.post("/auth/register", json=payload)
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 400
+
+
+def test_register_rejects_invalid_email(client):
+    response = client.post(
+        "/auth/register",
+        json={
+            "email": "invalid-email",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_login_success(client):
+    client.post(
+        "/auth/register",
+        json={
+            "email": "login@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "login@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Login successful"
+    }
+
+    assert "atlasgpt_session" in response.cookies
+
+
+def test_login_rejects_wrong_password(client):
+    client.post(
+        "/auth/register",
+        json={
+            "email": "login@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "login@example.com",
+            "password": "wrongpassword",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password"
+
+
+def test_login_rejects_unknown_email(client):
+    response = client.post(
+        "/auth/login",
+        json={
+            "email": "unknown@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_auth_me_returns_authenticated_user(client):
+    client.post(
+        "/auth/register",
+        json={
+            "email": "session@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    client.post(
+        "/auth/login",
+        json={
+            "email": "session@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    response = client.get("/auth/me")
+
+    assert response.status_code == 200
+    assert response.json()["authenticated"] is True
+    assert isinstance(response.json()["user_id"], int)
+
+
+def test_auth_me_rejects_missing_session(client):
+    response = client.get(
+        "/auth/me",
+        headers={"Cookie": ""},
+    )
+
+    assert response.status_code == 401
+
+
+def test_auth_me_rejects_invalid_session(client):
+    response = client.get(
+        "/auth/me",
+        cookies={"atlasgpt_session": "invalid-token"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_logout_revokes_session(client):
+    client.post(
+        "/auth/register",
+        json={
+            "email": "logout@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    client.post(
+        "/auth/login",
+        json={
+            "email": "logout@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    # Confirm the session works before logout.
+    before_logout = client.get("/auth/me")
+    assert before_logout.status_code == 200
+
+    # Logout.
+    logout_response = client.post("/auth/logout")
+
+    assert logout_response.status_code == 200
+    assert logout_response.json() == {
+        "message": "Logout successful"
+    }
+
+    # Confirm the session no longer works.
+    after_logout = client.get("/auth/me")
+    assert after_logout.status_code == 401
+
+
+def test_logout_without_session(client):
+    response = client.post("/auth/logout")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Logout successful"
+    }
+
+
+@patch("src.api.main.process_message")
+def test_chat_with_web_session(mock_process_message, client):
+    mock_process_message.return_value = "Hello from AtlasGPT!"
+
+    client.post(
+        "/auth/register",
+        json={
+            "email": "chat@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    client.post(
+        "/auth/login",
+        json={
+            "email": "chat@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    response = client.post(
+        "/chat",
+        headers={"Authorization": ""},
+        json={
+            "conversation_id": "web-chat",
+            "message": "Hello",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reply": "Hello from AtlasGPT!"
+    }
+
+    mock_process_message.assert_called_once()
+    assert mock_process_message.call_args.kwargs["conversation_id"] == "web-chat"
+
+def test_upload_document_with_web_session(client, tmp_path, monkeypatch):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    client.post(
+        "/auth/register",
+        json={
+            "email": "upload@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    client.post(
+        "/auth/login",
+        json={
+            "email": "upload@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    monkeypatch.setattr(
+        api_main,
+        "ingest_document",
+        lambda file_path, user_id: 2,
+    )
+
+    response = client.post(
+        "/documents/upload",
+        headers={"Authorization": ""},
+        files={
+            "file": (
+                "web-document.txt",
+                b"Document uploaded through browser session",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "web-document.txt"
+    assert response.json()["chunks"] == 2
+
+
+def test_web_session_can_list_and_delete_documents(
+    client, tmp_path, monkeypatch
+):
+    upload_dir = tmp_path / "uploads"
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", upload_dir)
+
+    client.post(
+        "/auth/register",
+        json={
+            "email": "documents@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    client.post(
+        "/auth/login",
+        json={
+            "email": "documents@example.com",
+            "password": "securepassword123",
+        },
+    )
+
+    user_id = api_main.get_user_by_session(
+        client.cookies.get("atlasgpt_session")
+    )
+
+    user_dir = upload_dir / str(user_id)
+    user_dir.mkdir(parents=True)
+    (user_dir / "notes.txt").write_text("Test document")
+
+    monkeypatch.setattr(
+        api_main,
+        "list_documents",
+        lambda current_user_id: (
+            ["notes.txt"] if current_user_id == user_id else []
+        ),
+    )
+
+    monkeypatch.setattr(
+        api_main,
+        "delete_document",
+        lambda filename, current_user_id: None,
+    )
+
+    list_response = client.get(
+        "/documents",
+        headers={"Authorization": ""},
+    )
+
+    assert list_response.status_code == 200
+    assert list_response.json()["documents"] == ["notes.txt"]
+
+    delete_response = client.delete(
+        "/documents/notes.txt",
+        headers={"Authorization": ""},
+    )
+
+    assert delete_response.status_code == 200
+    assert delete_response.json()["filename"] == "notes.txt"
+    assert not (user_dir / "notes.txt").exists()
