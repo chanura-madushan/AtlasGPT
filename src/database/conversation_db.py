@@ -1,3 +1,4 @@
+
 import bcrypt
 import hashlib
 import secrets
@@ -5,6 +6,8 @@ import sqlite3
 import re
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+
+
 DATABASE_PATH = Path(__file__).resolve().parents[2] / "data" / "atlasgpt.db"
 
 
@@ -78,7 +81,6 @@ def init_db():
         """)
 
 
-
 def save_message(
     user_id: int,
     role: str,
@@ -123,6 +125,60 @@ def get_history(
         {"role": row["role"], "content": row["content"]}
         for row in reversed(rows)
     ]
+
+
+def get_conversations(user_id: int) -> list[dict]:
+    """Return all conversations belonging to a user."""
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+
+        rows = connection.execute(
+            """
+            SELECT
+                conversation_id,
+                (
+                    SELECT content
+                    FROM conversation_messages AS first_message
+                    WHERE first_message.user_id = conversation_messages.user_id
+                        AND first_message.conversation_id = conversation_messages.conversation_id
+                        AND first_message.role = 'user'
+                    ORDER BY first_message.id ASC
+                    LIMIT 1
+                ) AS title,
+                MAX(created_at) AS updated_at
+            FROM conversation_messages
+            WHERE user_id = ?
+                AND conversation_id IS NOT NULL
+            GROUP BY conversation_id
+            ORDER BY MAX(id) DESC
+            """,
+            (user_id,),
+        ).fetchall()
+
+    return [
+        {
+            "conversation_id": row["conversation_id"],
+            "title": row["title"] or "New conversation",
+            "updated_at": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+def delete_conversation(user_id: int, conversation_id: str) -> bool:
+    """Delete one conversation belonging to a specific user."""
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        cursor = connection.execute(
+            """
+            DELETE FROM conversation_messages
+            WHERE user_id = ?
+                AND conversation_id = ?
+            """,
+            (user_id, conversation_id),
+        )
+
+    return cursor.rowcount > 0
 
 
 def clear_history(user_id: int):
@@ -247,6 +303,7 @@ def create_web_account(email: str, password: str) -> int:
             if existing_email:
                 raise ValueError("An account with this email already exists.")
 
+
 def authenticate_web_account(
     email: str,
     password: str,
@@ -274,6 +331,7 @@ def authenticate_web_account(
         return None
 
     return user_id
+
 
 def create_web_session(
     user_id: int,
@@ -338,6 +396,7 @@ def revoke_web_session(token: str) -> bool:
         )
 
     return cursor.rowcount > 0
+
 
 def create_api_credential(user_id: int) -> str:
     api_key = secrets.token_urlsafe(32)

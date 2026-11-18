@@ -20,6 +20,8 @@ from src.database.conversation_db import (
     save_message,
     get_history,
     clear_history,
+    get_conversations,
+    delete_conversation,
 )
 
 
@@ -421,3 +423,95 @@ def test_web_session_can_be_revoked(web_account_db):
     assert revoke_web_session(token) is True
     assert get_user_by_session(token) is None
     assert revoke_web_session(token) is False
+
+
+def test_get_conversations_returns_correct_titles(web_account_db):
+    user_id = 123
+
+    save_message(user_id, "user", "Learning Python", "chat-1")
+    save_message(user_id, "assistant", "Python is useful.", "chat-1")
+    save_message(user_id, "user", "Learning AI", "chat-2")
+
+    conversations = get_conversations(user_id)
+
+    assert len(conversations) == 2
+
+    assert conversations[0]["conversation_id"] == "chat-2"
+    assert conversations[0]["title"] == "Learning AI"
+
+    assert conversations[1]["conversation_id"] == "chat-1"
+    assert conversations[1]["title"] == "Learning Python"
+
+
+def test_get_conversations_only_returns_user_conversations(web_account_db):
+    save_message(123, "user", "User one conversation", "chat-1")
+    save_message(456, "user", "User two conversation", "chat-2")
+
+    conversations = get_conversations(123)
+
+    assert len(conversations) == 1
+    assert conversations[0]["conversation_id"] == "chat-1"
+
+
+def test_get_conversations_returns_empty_list(web_account_db):
+    conversations = get_conversations(123)
+
+    assert conversations == []
+
+
+def test_delete_conversation(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_delete_conversation.db"
+
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+
+    save_message(123, "user", "First question", "chat-1")
+    save_message(123, "assistant", "First answer", "chat-1")
+    save_message(123, "user", "Second question", "chat-2")
+
+    result = delete_conversation(123, "chat-1")
+
+    assert result is True
+    assert get_history(123, conversation_id="chat-1") == []
+    assert len(get_history(123, conversation_id="chat-2")) == 1
+
+
+def test_delete_nonexistent_conversation(tmp_path, monkeypatch):
+    test_db = tmp_path / "test_delete_missing.db"
+
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+
+    result = delete_conversation(123, "missing-chat")
+
+    assert result is False
+
+
+def test_user_cannot_delete_another_users_conversation(
+    tmp_path,
+    monkeypatch,
+):
+    test_db = tmp_path / "test_delete_other_user.db"
+
+    monkeypatch.setattr(
+        "src.database.conversation_db.DATABASE_PATH",
+        test_db,
+    )
+
+    init_db()
+
+    save_message(456, "user", "Private question", "private-chat")
+    save_message(456, "assistant", "Private answer", "private-chat")
+
+    result = delete_conversation(123, "private-chat")
+
+    assert result is False
+    assert len(get_history(456, conversation_id="private-chat")) == 2

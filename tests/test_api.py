@@ -996,3 +996,99 @@ def test_web_session_can_list_and_delete_documents(
     assert delete_response.status_code == 200
     assert delete_response.json()["filename"] == "notes.txt"
     assert not (user_dir / "notes.txt").exists()
+
+
+def test_list_conversations(client):
+    from src.database.conversation_db import save_message
+
+    save_message(123, "user", "Explain Python", "python-chat")
+    save_message(123, "assistant", "Python is a programming language.", "python-chat")
+    save_message(123, "user", "Explain machine learning", "ml-chat")
+
+    response = client.get("/conversations")
+
+    assert response.status_code == 200
+
+    conversations = response.json()["conversations"]
+
+    assert len(conversations) == 2
+    assert {item["conversation_id"] for item in conversations} == {
+        "python-chat",
+        "ml-chat",
+    }
+
+
+def test_get_conversation_messages(client):
+    from src.database.conversation_db import save_message
+
+    save_message(123, "user", "Explain Python", "python-chat")
+    save_message(123, "assistant", "Python is a programming language.", "python-chat")
+
+    response = client.get("/conversations/python-chat/messages")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "conversation_id": "python-chat",
+        "messages": [
+            {"role": "user", "content": "Explain Python"},
+            {"role": "assistant", "content": "Python is a programming language."},
+        ],
+    }
+
+
+def test_user_cannot_access_another_users_conversation(client):
+    from src.database.conversation_db import save_message
+
+    save_message(456, "user", "Private message", "private-chat")
+
+    response = client.get("/conversations/private-chat/messages")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Conversation not found"
+
+
+
+def test_delete_conversation(client):
+    from src.database.conversation_db import save_message
+
+    save_message(123, "user", "Explain Python", "python-chat")
+    save_message(123, "assistant", "Python is a language.", "python-chat")
+
+    response = client.delete("/conversations/python-chat")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Conversation deleted successfully",
+        "conversation_id": "python-chat",
+    }
+
+    # Verify that the conversation is actually gone.
+    history_response = client.get(
+        "/conversations/python-chat/messages"
+    )
+    assert history_response.status_code == 404
+
+
+def test_delete_nonexistent_conversation(client):
+    response = client.delete("/conversations/missing-chat")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Conversation not found"
+
+
+def test_user_cannot_delete_another_users_conversation(client):
+    from src.database.conversation_db import save_message
+
+    save_message(456, "user", "Private message", "private-chat")
+
+    response = client.delete("/conversations/private-chat")
+
+    assert response.status_code == 404
+
+    # Verify that User 456's conversation remains untouched.
+    from src.database.conversation_db import get_history
+
+    history = get_history(456, conversation_id="private-chat")
+
+    assert len(history) == 1
+    assert history[0]["content"] == "Private message"

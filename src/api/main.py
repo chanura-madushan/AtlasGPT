@@ -27,6 +27,9 @@ from src.database.conversation_db import (
     create_web_session,
     get_user_by_session,
     revoke_web_session,
+    get_conversations,
+    get_history,
+    delete_conversation,
 )
 from fastapi import Response
 from fastapi import Request
@@ -368,6 +371,68 @@ def chat(
 
     return {"reply": answer}
 
+
+
+# --------------------------------------------------
+# Conversation Endpoints
+# --------------------------------------------------
+
+@app.get("/conversations")
+def list_conversations(
+    user_id: int = Depends(require_user),
+):
+    return {
+        "conversations": get_conversations(user_id),
+    }
+
+
+@app.get("/conversations/{conversation_id}/messages")
+def get_conversation_messages(
+    conversation_id: str,
+    user_id: int = Depends(require_user),
+):
+    conversations = get_conversations(user_id)
+
+    conversation_exists = any(
+        conversation["conversation_id"] == conversation_id
+        for conversation in conversations
+    )
+
+    if not conversation_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    return {
+        "conversation_id": conversation_id,
+        "messages": get_history(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            limit=100,
+        ),
+    }
+
+@app.delete("/conversations/{conversation_id}")
+def remove_conversation(
+    conversation_id: str,
+    user_id: int = Depends(require_user),
+):
+    deleted = delete_conversation(
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+
+    return {
+        "message": "Conversation deleted successfully",
+        "conversation_id": conversation_id,
+    }
 
 # --------------------------------------------------
 # Upload Document Endpoint
