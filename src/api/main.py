@@ -1,3 +1,4 @@
+
 import logging
 import os
 import time
@@ -5,6 +6,7 @@ from collections import defaultdict, deque
 from threading import Lock
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import (
     Depends,
     FastAPI,
@@ -12,12 +14,17 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
+    Response,
+    Request,
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+
 from src.llm.conversation_engine import process_message
 from src.rag.ingest import ingest_document
 from src.rag.vector_store import list_documents, delete_document
+
 from src.database.conversation_db import (
     init_db,
     get_user_by_api_key,
@@ -31,18 +38,24 @@ from src.database.conversation_db import (
     get_history,
     delete_conversation,
 )
-from fastapi import Response
-from fastapi import Request
-from fastapi.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
+
 
 # --------------------------------------------------
 # Configuration
 # --------------------------------------------------
 
-RATE_LIMIT = 30
 RATE_WINDOW = 60
+
+RATE_LIMITS = {
+    "chat": 10,
+    "upload": 5,
+    "delete": 10,
+    "read": 60,
+    "credential": 5,
+}
+
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
 
 user_requests = defaultdict(deque)
@@ -54,8 +67,15 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+FRONTEND_ORIGIN = "http://localhost:5173"
 
 security = HTTPBearer(auto_error=False)
+
+
+# --------------------------------------------------
+# Trusted Origin Validation
+# --------------------------------------------------
+
 def require_trusted_origin(request: Request) -> None:
     origin = request.headers.get("origin")
 
@@ -67,30 +87,59 @@ def require_trusted_origin(request: Request) -> None:
 
 
 # --------------------------------------------------
-# API Key Authentication
+# Rate Limiting
+# --------------------------------------------------
+
+def check_rate_limit(
+    user_id: int,
+    category: str,
+) -> None:
+    if category not in RATE_LIMITS:
+        raise ValueError(f"Unknown rate-limit category: {category}")
+
+    now = time.monotonic()
+    limit = RATE_LIMITS[category]
+    key = (user_id, category)
+
+    with rate_limit_lock:
+        requests = user_requests[key]
+
+        while requests and now - requests[0] >= RATE_WINDOW:
+            requests.popleft()
+
+        if len(requests) >= limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Rate limit exceeded. Try again later.",
+            )
+
+        requests.append(now)
+
+
+# --------------------------------------------------
+# API Key and Session Authentication
 # --------------------------------------------------
 
 def require_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> int:
-    # First, check for an API key.
+    # Check API key authentication first.
     if credentials is not None:
         user_id = get_user_by_api_key(credentials.credentials)
 
         if user_id is not None:
-            check_rate_limit(user_id)
             return user_id
 
-    # If no valid API key, check the browser session.
+    # Otherwise, check browser session authentication.
     session_token = request.cookies.get("atlasgpt_session")
 
     if session_token:
         require_trusted_origin(request)
+
         user_id = get_user_by_session(session_token)
 
         if user_id is not None:
-            check_rate_limit(user_id)
             return user_id
 
     raise HTTPException(
@@ -99,22 +148,16 @@ def require_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-def check_rate_limit(user_id: int) -> None:
-    now = time.monotonic()
 
-    with rate_limit_lock:
-        requests = user_requests[user_id]
+def rate_limited_user(category: str):
+    def dependency(
+        user_id: int = Depends(require_user),
+    ) -> int:
+        check_rate_limit(user_id, category)
+        return user_id
 
-        while requests and now - requests[0] >= RATE_WINDOW:
-            requests.popleft()
+    return dependency
 
-        if len(requests) >= RATE_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Rate limit exceeded. Try again later.",
-            )
-
-        requests.append(now)
 
 def require_api_key(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
@@ -135,10 +178,17 @@ def require_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    check_rate_limit(user_id)
     return user_id
 
 
+def rate_limited_api_key(category: str):
+    def dependency(
+        user_id: int = Depends(require_api_key),
+    ) -> int:
+        check_rate_limit(user_id, category)
+        return user_id
+
+    return dependency
 
 
 # --------------------------------------------------
@@ -157,7 +207,12 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-FRONTEND_ORIGIN = "http://localhost:5173"
+
+
+# --------------------------------------------------
+# CORS Configuration
+# --------------------------------------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
@@ -167,10 +222,13 @@ app.add_middleware(
 )
 
 
-@app.delete("/credentials")
+# --------------------------------------------------
+# Revoke API Credential
+# --------------------------------------------------
 
+@app.delete("/credentials")
 def revoke_credential(
-    user_id: int = Depends(require_api_key),
+    user_id: int = Depends(rate_limited_api_key("credential")),
 ):
     revoked = revoke_api_credential(user_id)
 
@@ -182,8 +240,9 @@ def revoke_credential(
 
     return {"message": "API credential revoked successfully"}
 
+
 # --------------------------------------------------
-# Register Request
+# Request Models
 # --------------------------------------------------
 
 class RegisterRequest(BaseModel):
@@ -191,18 +250,10 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8)
 
 
-# --------------------------------------------------
-# Login Request
-# --------------------------------------------------
-
 class LoginRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
     password: str = Field(min_length=1)
 
-
-# --------------------------------------------------
-# Chat Request Model
-# --------------------------------------------------
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
@@ -230,6 +281,7 @@ class ChatRequest(BaseModel):
 @app.get("/")
 def home():
     return {"message": "AtlasGPT API is running"}
+
 
 # --------------------------------------------------
 # Register
@@ -261,7 +313,6 @@ def register(request: RegisterRequest):
 # --------------------------------------------------
 # Login
 # --------------------------------------------------
-
 
 @app.post(
     "/auth/login",
@@ -296,8 +347,9 @@ def login(request: LoginRequest, response: Response):
     }
 
 
-
-
+# --------------------------------------------------
+# Current User
+# --------------------------------------------------
 
 @app.get("/auth/me")
 def get_current_user(request: Request):
@@ -323,7 +375,9 @@ def get_current_user(request: Request):
     }
 
 
-
+# --------------------------------------------------
+# Logout
+# --------------------------------------------------
 
 @app.post(
     "/auth/logout",
@@ -338,7 +392,7 @@ def logout(request: Request, response: Response):
     response.delete_cookie(
         key="atlasgpt_session",
         httponly=True,
-        secure=False,
+        secure=COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -355,7 +409,7 @@ def logout(request: Request, response: Response):
 @app.post("/chat")
 def chat(
     request: ChatRequest,
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("chat")),
 ):
     answer = process_message(
         user_id=user_id,
@@ -372,14 +426,13 @@ def chat(
     return {"reply": answer}
 
 
-
 # --------------------------------------------------
 # Conversation Endpoints
 # --------------------------------------------------
 
 @app.get("/conversations")
 def list_conversations(
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("read")),
 ):
     return {
         "conversations": get_conversations(user_id),
@@ -389,7 +442,7 @@ def list_conversations(
 @app.get("/conversations/{conversation_id}/messages")
 def get_conversation_messages(
     conversation_id: str,
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("read")),
 ):
     conversations = get_conversations(user_id)
 
@@ -413,10 +466,11 @@ def get_conversation_messages(
         ),
     }
 
+
 @app.delete("/conversations/{conversation_id}")
 def remove_conversation(
     conversation_id: str,
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("delete")),
 ):
     deleted = delete_conversation(
         user_id=user_id,
@@ -434,14 +488,15 @@ def remove_conversation(
         "conversation_id": conversation_id,
     }
 
+
 # --------------------------------------------------
-# Upload Document Endpoint
+# Upload Document
 # --------------------------------------------------
 
 @app.post("/documents/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("upload")),
 ):
     if not file.filename:
         raise HTTPException(
@@ -464,7 +519,6 @@ async def upload_document(
 
     file_path = user_upload_dir / filename
 
-    # Avoid accidentally replacing an existing document.
     if file_path.exists():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -508,12 +562,12 @@ async def upload_document(
 
 
 # --------------------------------------------------
-# List Documents Endpoint
+# List Documents
 # --------------------------------------------------
 
 @app.get("/documents")
 def get_documents(
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("read")),
 ):
     return {
         "documents": list_documents(user_id),
@@ -521,13 +575,13 @@ def get_documents(
 
 
 # --------------------------------------------------
-# Delete Document Endpoint
+# Delete Document
 # --------------------------------------------------
 
 @app.delete("/documents/{filename}")
 def remove_document(
     filename: str,
-    user_id: int = Depends(require_user),
+    user_id: int = Depends(rate_limited_user("delete")),
 ):
     if Path(filename).name != filename or filename in {".", ".."}:
         raise HTTPException(

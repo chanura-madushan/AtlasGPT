@@ -20,6 +20,7 @@ def add_documents(
     embeddings: list[list[float]],
     source: str,
     user_id: int,
+    page_numbers: list[int] | None = None,
 ) -> None:
     """Store document chunks with their owner's ID."""
 
@@ -28,6 +29,9 @@ def add_documents(
 
     if len(chunks) != len(embeddings):
         raise ValueError("Each chunk must have one embedding.")
+
+    if page_numbers is not None and len(chunks) != len(page_numbers):
+        raise ValueError("Each chunk must have one page number.")
 
     if not chunks:
         return
@@ -54,9 +58,16 @@ def add_documents(
         documents=chunks,
         embeddings=embeddings,
         metadatas=[
-            {"source": source, "user_id": user_id}
-            for _ in chunks
-        ],
+    {
+        "source": source,
+        "user_id": user_id,
+        **({"page": page} if page is not None else {}),
+    }
+    for page in (
+        page_numbers if page_numbers is not None
+        else [None] * len(chunks)
+    )
+],
     )
 
     # Remove chunks that are no longer needed.
@@ -67,6 +78,7 @@ def add_documents(
 
     if obsolete_ids:
         collection.delete(ids=obsolete_ids)
+
 
 
 def search_documents(
@@ -120,13 +132,19 @@ def search_documents(
         distance = results["distances"][0][i]
 
         if distance <= MAX_DISTANCE:
-            matches.append({
+            match = {
                 "text": document,
                 "source": metadata["source"],
                 "distance": distance,
-            })
+            }
+
+            if "page" in metadata:
+                match["page"] = metadata["page"]
+
+            matches.append(match)
 
     return matches
+
 
 
 def list_documents(user_id: int) -> list[dict]:

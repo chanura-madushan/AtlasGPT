@@ -1,6 +1,13 @@
 
 import { useState, useRef, useEffect, type FormEvent } from 'react'
-import { Send, Bot, User, LoaderCircle } from 'lucide-react'
+import {
+  Send,
+  Bot,
+  User,
+  LoaderCircle,
+  Sparkles,
+  MessageSquare,
+} from 'lucide-react'
 
 import {
   chatApi,
@@ -48,7 +55,6 @@ export default function ChatPanel({
       } catch (err) {
         if (cancelled) return
 
-        // A new conversation has no messages yet.
         if (err instanceof ApiError && err.status === 404) {
           setMessages([])
         } else {
@@ -76,6 +82,7 @@ export default function ChatPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
+      block: 'end',
     })
   }, [messages, sending])
 
@@ -120,43 +127,68 @@ export default function ChatPanel({
   }
 
   return (
-    <section className="flex min-h-[500px] flex-col overflow-hidden rounded-2xl border border-atlas-mist bg-white">
+    <section className="flex h-full min-h-[580px] flex-col overflow-hidden rounded-2xl border border-atlas-mist bg-white shadow-sm">
 
       {/* Chat header */}
-      <div className="flex items-center gap-3 border-b border-atlas-mist p-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-deep-cyan">
-          <Bot size={21} />
+      <div className="flex shrink-0 items-center justify-between border-b border-atlas-mist px-5 py-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-deep-cyan">
+            <Bot size={23} />
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="font-heading text-sm font-bold sm:text-base">
+              Ask Atlas
+            </h3>
+            <p className="mt-0.5 text-xs text-atlas-slate">
+              Your personal document assistant
+            </p>
+          </div>
         </div>
 
-        <div>
-          <h3 className="font-heading font-bold">Ask Atlas</h3>
-          <p className="text-xs text-atlas-slate">
-            Answers grounded in your documents
-          </p>
+        <div className="hidden items-center gap-2 rounded-full bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 sm:flex">
+          <span className="h-2 w-2 rounded-full bg-green-500" />
+          Ready
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-5">
+      {/* Messages area */}
+      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto bg-atlas-pearl/60 px-4 py-6 sm:px-7 sm:py-8">
 
         {loadingHistory && (
-          <div className="flex min-h-64 items-center justify-center gap-2 text-sm text-atlas-slate">
-            <LoaderCircle size={18} className="animate-spin" />
-            Loading conversation...
+          <div className="flex min-h-full items-center justify-center">
+            <div className="text-center">
+              <LoaderCircle
+                size={26}
+                className="mx-auto animate-spin text-atlas-cyan"
+              />
+              <p className="mt-4 text-sm font-medium text-atlas-slate">
+                Loading conversation...
+              </p>
+            </div>
           </div>
         )}
 
         {!loadingHistory && messages.length === 0 && (
-          <div className="flex min-h-64 flex-col items-center justify-center text-center">
-            <Bot size={32} className="text-atlas-cyan" />
+          <div className="flex min-h-full flex-col items-center justify-center px-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-atlas-cyan/10 text-atlas-cyan">
+              <Sparkles size={30} />
+            </div>
 
-            <h4 className="mt-4 font-heading font-bold">
-              Start a conversation
+            <h4 className="mt-6 font-heading text-xl font-bold tracking-tight sm:text-2xl">
+              What would you like to know?
             </h4>
 
-            <p className="mt-2 max-w-xs text-sm leading-6 text-atlas-slate">
-              Ask questions about your uploaded documents.
+            <p className="mt-3 max-w-md text-sm leading-7 text-atlas-slate">
+              Ask questions about your uploaded documents. AtlasGPT
+              will search your knowledge base and use relevant
+              information to answer.
             </p>
+
+            <div className="mt-7 flex items-center gap-2 rounded-xl border border-atlas-mist bg-white px-4 py-3 text-xs text-atlas-slate">
+              <MessageSquare size={15} className="text-atlas-cyan" />
+              Start by typing a question below.
+            </div>
           </div>
         )}
 
@@ -168,24 +200,24 @@ export default function ChatPanel({
             }`}
           >
             <div
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
                 message.role === 'user'
                   ? 'bg-atlas-navy text-white'
                   : 'bg-atlas-cyan/10 text-atlas-deep-cyan'
               }`}
             >
               {message.role === 'user' ? (
-                <User size={16} />
+                <User size={17} />
               ) : (
-                <Bot size={16} />
+                <Bot size={18} />
               )}
             </div>
 
             <div
-              className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 ${
+              className={`max-w-[88%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3.5 text-sm leading-7 sm:max-w-[80%] sm:px-5 ${
                 message.role === 'user'
-                  ? 'bg-atlas-cyan text-white'
-                  : 'bg-atlas-cloud text-atlas-navy'
+                  ? 'rounded-tr-md bg-atlas-cyan text-white shadow-sm'
+                  : 'rounded-tl-md border border-atlas-mist bg-white text-atlas-navy'
               }`}
             >
               {message.content}
@@ -194,9 +226,15 @@ export default function ChatPanel({
         ))}
 
         {sending && (
-          <div className="flex items-center gap-2 text-sm text-atlas-slate">
-            <LoaderCircle size={17} className="animate-spin" />
-            AtlasGPT is thinking...
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-deep-cyan">
+              <Bot size={18} />
+            </div>
+
+            <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-atlas-mist bg-white px-4 py-3.5 text-sm text-atlas-slate">
+              <LoaderCircle size={16} className="animate-spin text-atlas-cyan" />
+              AtlasGPT is thinking...
+            </div>
           </div>
         )}
 
@@ -205,34 +243,40 @@ export default function ChatPanel({
 
       {/* Error message */}
       {error && (
-        <p className="px-5 pb-2 text-sm text-red-600">
+        <div className="shrink-0 border-t border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600 sm:px-6">
           {error}
-        </p>
+        </div>
       )}
 
       {/* Message input */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-center gap-3 border-t border-atlas-mist p-4"
+        className="shrink-0 border-t border-atlas-mist bg-white p-4 sm:p-5"
       >
-        <input
-          type="text"
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          placeholder="Ask something about your documents..."
-          maxLength={4000}
-          disabled={sending || loadingHistory}
-          className="min-w-0 flex-1 rounded-xl border border-atlas-mist bg-atlas-pearl px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan disabled:opacity-50"
-        />
+        <div className="flex items-center gap-3 rounded-xl border border-atlas-mist bg-atlas-pearl p-2 transition focus-within:border-atlas-cyan focus-within:ring-2 focus-within:ring-atlas-cyan/10">
+          <input
+            type="text"
+            value={input}
+            onChange={(event) => setInput(event.target.value)}
+            placeholder="Ask something about your documents..."
+            maxLength={4000}
+            disabled={sending || loadingHistory}
+            className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-atlas-navy outline-none placeholder:text-atlas-slate/70 disabled:opacity-50"
+          />
 
-        <button
-          type="submit"
-          disabled={!input.trim() || sending || loadingHistory}
-          aria-label="Send message"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-atlas-cyan text-white transition hover:bg-atlas-deep-cyan disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Send size={18} />
-        </button>
+          <button
+            type="submit"
+            disabled={!input.trim() || sending || loadingHistory}
+            aria-label="Send message"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-atlas-cyan text-white shadow-sm transition hover:bg-atlas-deep-cyan disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Send size={18} />
+          </button>
+        </div>
+
+        <p className="mt-3 text-center text-[11px] text-atlas-slate">
+          AtlasGPT answers using your uploaded knowledge sources.
+        </p>
       </form>
     </section>
   )

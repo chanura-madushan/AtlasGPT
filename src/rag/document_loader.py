@@ -4,6 +4,38 @@ from pypdf import PdfReader
 from docx import Document
 from zipfile import BadZipFile, ZipFile
 
+def load_pdf_pages(file_path: str) -> list[dict]:
+    """Extract PDF text while preserving original page numbers."""
+
+    path = Path(file_path)
+
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    if path.suffix.lower() != ".pdf":
+        raise ValueError("File must be a PDF file.")
+
+    with path.open("rb") as file:
+        header = file.read(1024)
+
+    if b"%PDF-" not in header:
+        raise ValueError("Invalid PDF file.")
+
+    reader = PdfReader(str(path))
+    pages = []
+
+    for page_number, page in enumerate(reader.pages, start=1):
+        text = page.extract_text()
+
+        if text and text.strip():
+            pages.append({
+                "page": page_number,
+                "text": text.strip(),
+            })
+
+    return pages
+
+
 def load_txt(file_path: str) -> str:
    # Extract text from a TXT file.
     path = Path(file_path)

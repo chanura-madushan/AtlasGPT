@@ -292,3 +292,48 @@ def test_failed_replacement_preserves_old_document(monkeypatch):
 
     finally:
         delete_document(source, user_id)
+
+
+def test_add_documents_stores_and_returns_page_numbers():
+    user_id = 9701
+    source = "page_metadata_test.pdf"
+
+    try:
+        add_documents(
+            ["Content from page one", "Content from page three"],
+            [[1.0] + [0.0] * 767, [0.8, 0.6] + [0.0] * 766],
+            source,
+            user_id,
+            page_numbers=[1, 3],
+        )
+
+        stored = vector_store.collection.get(
+            where={
+                "$and": [
+                    {"user_id": user_id},
+                    {"source": source},
+                ]
+            },
+            include=["metadatas"],
+        )
+
+        stored_pages = {
+            metadata["page"]
+            for metadata in stored["metadatas"]
+        }
+
+        assert stored_pages == {1, 3}
+
+        results = search_documents(
+            [1.0] + [0.0] * 767,
+            user_id=user_id,
+            n_results=2,
+            source=source,
+        )
+
+        assert results
+        assert all("page" in result for result in results)
+        assert {result["page"] for result in results} == {1, 3}
+
+    finally:
+        delete_document(source, user_id)

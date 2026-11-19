@@ -640,14 +640,15 @@ def test_revoke_already_revoked_credential(client):
     assert response.status_code == 401
 
 
-def test_rate_limit_allows_30_requests(client):
-    for _ in range(30):
+
+def test_rate_limit_allows_60_read_requests(client):
+    for _ in range(60):
         response = client.get("/documents")
         assert response.status_code == 200
 
 
-def test_rate_limit_blocks_31st_request(client):
-    for _ in range(30):
+def test_rate_limit_blocks_61st_read_request(client):
+    for _ in range(60):
         client.get("/documents")
 
     response = client.get("/documents")
@@ -661,7 +662,7 @@ def test_rate_limit_blocks_31st_request(client):
 def test_rate_limit_is_independent_per_user(client):
     from src.database.conversation_db import create_api_credential
 
-    for _ in range(30):
+    for _ in range(60):
         client.get("/documents")
 
     second_user_key = create_api_credential(456)
@@ -672,6 +673,17 @@ def test_rate_limit_is_independent_per_user(client):
     )
 
     assert response.status_code == 200
+
+
+def test_rate_limit_categories_are_independent(client):
+    from src.api.main import check_rate_limit
+
+    for _ in range(10):
+        check_rate_limit(123, "chat")
+
+    # Chat limit is exhausted, but the read category remains available.
+    check_rate_limit(123, "read")
+
 
 def test_register_account_success(client):
     response = client.post(

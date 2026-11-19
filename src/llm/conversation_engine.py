@@ -77,7 +77,21 @@ SYSTEM_PROMPT = (
     "However, if the user asks about an uploaded document, "
     "clearly state that no relevant information was retrieved. "
     "Do not pretend to have read information that was not provided. "
+    "SOURCE CITATION RULES: "
 
+    "1. Cite document-based factual claims using the exact "
+    "source labels provided in the document context. "
+
+    "2. For PDF sources, include the original page number "
+    "exactly as provided in the source label. "
+
+    "3. Never invent filenames or page numbers. "
+
+    "4. When information comes from multiple passages, "
+    "cite each relevant source. "
+
+    "5. Do not provide a citation unless the retrieved "
+    "context supports the associated claim. "
     "Be direct, accurate, and concise. "
     "Prioritize evidence over completeness. "
     "If the retrieved context cannot support a detailed "
@@ -133,9 +147,13 @@ def process_message(
     )
 
     document_context = "\n\n".join(
-    f"[Source: {result['source']}]\n{result['text']}"
+    (
+        f"[Source: {result['source']}, Page {result['page']}]\n"
+        if "page" in result
+        else f"[Source: {result['source']}]\n"
+    ) + result["text"]
     for result in retrieved_chunks
-    )
+)
 
     prompt = (
         f"{SYSTEM_PROMPT}\n\n"
