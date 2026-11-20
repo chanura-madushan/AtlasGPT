@@ -1,8 +1,15 @@
-
 import re
 
 
-def split_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_OVERLAP = 100
+
+
+def split_text(
+    text: str,
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    overlap: int = DEFAULT_CHUNK_OVERLAP,
+) -> list[str]:
     """Split text into sentence-aware chunks while preserving paragraphs."""
 
     if chunk_size <= 0:
