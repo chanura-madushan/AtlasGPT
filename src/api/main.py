@@ -39,6 +39,7 @@ from src.database.conversation_db import (
     delete_conversation,
 )
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

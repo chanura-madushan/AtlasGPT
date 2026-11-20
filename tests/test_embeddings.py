@@ -50,3 +50,25 @@ def test_embed_texts_handles_timeout():
     ):
         with pytest.raises(requests.exceptions.Timeout):
             embed_texts(["Hello AtlasGPT"])
+
+
+def test_embed_texts_batches_large_inputs_and_preserves_order():
+    first_batch = Mock()
+    first_batch.json.return_value = {
+        "embeddings": [[float(i)] for i in range(32)]
+    }
+    second_batch = Mock()
+    second_batch.json.return_value = {
+        "embeddings": [[32.0], [33.0]]
+    }
+
+    with patch(
+        "src.rag.embeddings.requests.post",
+        side_effect=[first_batch, second_batch],
+    ) as mock_post:
+        result = embed_texts([f"text {i}" for i in range(34)])
+
+    assert result == [[float(i)] for i in range(34)]
+    assert mock_post.call_count == 2
+    assert len(mock_post.call_args_list[0].kwargs["json"]["input"]) == 32
+    assert len(mock_post.call_args_list[1].kwargs["json"]["input"]) == 2

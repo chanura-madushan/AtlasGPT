@@ -1,6 +1,10 @@
+import logging
+import time
+from pathlib import Path
 
 import chromadb
-from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 CHROMA_DIR = Path("data/chroma")
 MAX_DISTANCE = 0.7
@@ -36,12 +40,10 @@ def add_documents(
     if not chunks:
         return
 
-    ids = [
-        f"user_{user_id}_{source}_{i}"
-        for i in range(len(chunks))
-    ]
+    total_started = time.perf_counter()
+    ids = [f"user_{user_id}_{source}_{i}" for i in range(len(chunks))]
 
-    # Get existing chunk IDs for this user's document.
+    stage_started = time.perf_counter()
     existing_ids = collection.get(
         where={
             "$and": [
@@ -51,34 +53,46 @@ def add_documents(
         },
         include=[],
     )["ids"]
+    lookup_seconds = time.perf_counter() - stage_started
 
-    # Insert new chunks or update existing ones.
+    stage_started = time.perf_counter()
     collection.upsert(
         ids=ids,
         documents=chunks,
         embeddings=embeddings,
         metadatas=[
-    {
-        "source": source,
-        "user_id": user_id,
-        **({"page": page} if page is not None else {}),
-    }
-    for page in (
-        page_numbers if page_numbers is not None
-        else [None] * len(chunks)
+            {
+                "source": source,
+                "user_id": user_id,
+                **({"page": page} if page is not None else {}),
+            }
+            for page in (
+                page_numbers if page_numbers is not None
+                else [None] * len(chunks)
+            )
+        ],
     )
-],
-    )
+    upsert_seconds = time.perf_counter() - stage_started
 
-    # Remove chunks that are no longer needed.
-    obsolete_ids = [
-        doc_id for doc_id in existing_ids
-        if doc_id not in ids
-    ]
+    obsolete_ids = [doc_id for doc_id in existing_ids if doc_id not in ids]
+    delete_seconds = 0.0
 
     if obsolete_ids:
+        stage_started = time.perf_counter()
         collection.delete(ids=obsolete_ids)
+        delete_seconds = time.perf_counter() - stage_started
 
+    logger.info(
+        "Chroma storage timings: source=%s chunks=%d existing=%d "
+        "lookup=%.2fs upsert=%.2fs obsolete_delete=%.2fs total=%.2fs",
+        source,
+        len(chunks),
+        len(existing_ids),
+        lookup_seconds,
+        upsert_seconds,
+        delete_seconds,
+        time.perf_counter() - total_started,
+    )
 
 
 def search_documents(
@@ -103,11 +117,7 @@ def search_documents(
     elif source:
         filters.append({"source": source})
 
-    where = (
-        filters[0]
-        if len(filters) == 1
-        else {"$and": filters}
-    )
+    where = filters[0] if len(filters) == 1 else {"$and": filters}
 
     total = len(
         collection.get(
@@ -144,7 +154,6 @@ def search_documents(
             matches.append(match)
 
     return matches
-
 
 
 def list_documents(user_id: int) -> list[dict]:
