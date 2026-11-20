@@ -17,6 +17,16 @@ def test_short_text_returns_one_chunk():
     assert chunks[0] == text
 
 
+def test_default_chunk_size_reduces_chunk_count():
+    text = " ".join(["retrieval"] * 500)
+
+    default_chunks = split_text(text)
+    previous_size_chunks = split_text(text, chunk_size=500, overlap=50)
+
+    assert len(default_chunks) < len(previous_size_chunks)
+    assert all(len(chunk) <= 1000 for chunk in default_chunks)
+
+
 def test_chunks_do_not_exceed_chunk_size():
     text = "A" * 1200
 
