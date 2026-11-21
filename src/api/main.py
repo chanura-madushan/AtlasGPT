@@ -19,11 +19,26 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 
 from src.llm.conversation_engine import process_message
 from src.rag.ingest import ingest_document
 from src.rag.vector_store import list_documents, delete_document
+from src.database.job_db import (
+    init_job_db,
+    create_ingestion_job,
+    get_ingestion_job,
+)
+from src.database.usage_db import (
+    init_usage_db,
+    consume_usage,
+    get_usage_summary,
+    get_plan_catalog,
+    get_user_plan,
+    set_user_plan,
+    UsageLimitExceeded,
+)
 
 from src.database.conversation_db import (
     init_db,
@@ -37,6 +52,7 @@ from src.database.conversation_db import (
     get_conversations,
     get_history,
     delete_conversation,
+    create_guest_session,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -55,9 +71,30 @@ RATE_LIMITS = {
     "delete": 10,
     "read": 60,
     "credential": 5,
+    "auth": 10,
 }
 
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+ENVIRONMENT = os.getenv("ATLASGPT_ENV", "development").strip().lower()
+COOKIE_SECURE = os.getenv(
+    "COOKIE_SECURE",
+    "true" if ENVIRONMENT == "production" else "false",
+).strip().lower() == "true"
+
+# Comma-separated origins support local development and deployed frontends.
+_configured_origins = os.getenv(
+    "FRONTEND_ORIGINS",
+    os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"),
+)
+FRONTEND_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in _configured_origins.split(",")
+    if origin.strip()
+}
+if not FRONTEND_ORIGINS:
+    raise RuntimeError("At least one FRONTEND_ORIGINS entry is required.")
+
+# Backwards-compatible single-origin value for existing integrations.
+FRONTEND_ORIGIN = sorted(FRONTEND_ORIGINS)[0]
 
 user_requests = defaultdict(deque)
 rate_limit_lock = Lock()
@@ -67,8 +104,6 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
-
-FRONTEND_ORIGIN = "http://localhost:5173"
 
 security = HTTPBearer(auto_error=False)
 
@@ -80,7 +115,7 @@ security = HTTPBearer(auto_error=False)
 def require_trusted_origin(request: Request) -> None:
     origin = request.headers.get("origin")
 
-    if origin != FRONTEND_ORIGIN:
+    if origin is None or origin.rstrip("/") not in FRONTEND_ORIGINS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Untrusted request origin",
@@ -92,7 +127,7 @@ def require_trusted_origin(request: Request) -> None:
 # --------------------------------------------------
 
 def check_rate_limit(
-    user_id: int,
+    user_id: int | str,
     category: str,
 ) -> None:
     if category not in RATE_LIMITS:
@@ -199,6 +234,8 @@ def rate_limited_api_key(category: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_job_db()
+    init_usage_db()
     yield
 
 
@@ -216,7 +253,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=sorted(FRONTEND_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -293,7 +330,10 @@ def home():
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_trusted_origin)],
 )
-def register(request: RegisterRequest):
+def register(request: RegisterRequest, http_request: Request):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
     try:
         create_web_account(
             email=request.email,
@@ -312,6 +352,38 @@ def register(request: RegisterRequest):
 
 
 # --------------------------------------------------
+# Guest Session
+# --------------------------------------------------
+
+@app.post(
+    "/auth/guest",
+    dependencies=[Depends(require_trusted_origin)],
+)
+def create_guest(response: Response, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
+    user_id, session_token = create_guest_session()
+    set_user_plan(user_id, "guest")
+
+    response.set_cookie(
+        key="atlasgpt_session",
+        value=session_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=2 * 60 * 60,
+        path="/",
+    )
+
+    return {
+        "message": "Guest session created",
+        "plan": "guest",
+        "expires_in_seconds": 2 * 60 * 60,
+    }
+
+
+# --------------------------------------------------
 # Login
 # --------------------------------------------------
 
@@ -319,7 +391,10 @@ def register(request: RegisterRequest):
     "/auth/login",
     dependencies=[Depends(require_trusted_origin)],
 )
-def login(request: LoginRequest, response: Response):
+def login(request: LoginRequest, response: Response, http_request: Request):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
     user_id = authenticate_web_account(
         email=request.email,
         password=request.password,
@@ -373,6 +448,7 @@ def get_current_user(request: Request):
     return {
         "user_id": user_id,
         "authenticated": True,
+        "plan": get_user_plan(user_id),
     }
 
 
@@ -412,6 +488,14 @@ def chat(
     request: ChatRequest,
     user_id: int = Depends(rate_limited_user("chat")),
 ):
+    try:
+        consume_usage(user_id, "chat")
+    except UsageLimitExceeded as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(error),
+        ) from error
+
     answer = process_message(
         user_id=user_id,
         conversation_id=request.conversation_id,
@@ -425,6 +509,26 @@ def chat(
         )
 
     return {"reply": answer}
+
+
+# --------------------------------------------------
+# Public Plan Catalog
+# --------------------------------------------------
+
+@app.get("/plans")
+def list_plans():
+    return {"plans": get_plan_catalog()}
+
+
+# --------------------------------------------------
+# Account Usage
+# --------------------------------------------------
+
+@app.get("/account/usage")
+def account_usage(
+    user_id: int = Depends(rate_limited_user("read")),
+):
+    return get_usage_summary(user_id)
 
 
 # --------------------------------------------------
@@ -541,15 +645,30 @@ async def upload_document(
         )
 
     try:
+        try:
+            consume_usage(user_id, "upload")
+        except UsageLimitExceeded as error:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(error),
+            ) from error
+
         file_path.write_bytes(file_content)
 
-        chunks = ingest_document(str(file_path), user_id)
+        chunks = await run_in_threadpool(
+            ingest_document,
+            str(file_path),
+            user_id,
+        )
 
         return {
             "message": "Document uploaded and indexed successfully",
             "filename": filename,
             "chunks": chunks,
         }
+
+    except HTTPException:
+        raise
 
     except Exception as error:
         logger.exception("Document processing failed")
@@ -560,6 +679,94 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Document upload or processing failed",
         ) from error
+
+
+# --------------------------------------------------
+# Asynchronous Document Ingestion
+# --------------------------------------------------
+
+@app.post("/documents/upload-async", status_code=status.HTTP_202_ACCEPTED)
+async def upload_document_async(
+    file: UploadFile = File(...),
+    user_id: int = Depends(rate_limited_user("upload")),
+):
+    """Save an upload and queue indexing for the separate worker process."""
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No filename provided",
+        )
+
+    filename = Path(file.filename.replace("\\", "/")).name
+    if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF, TXT, and DOCX files are allowed",
+        )
+
+    user_upload_dir = UPLOAD_DIR / str(user_id)
+    user_upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = user_upload_dir / filename
+
+    if file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A document with this filename already exists",
+        )
+
+    content = await file.read(MAX_FILE_SIZE + 1)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty",
+        )
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="File size must not exceed 10 MB",
+        )
+
+    try:
+        try:
+            consume_usage(user_id, "upload")
+        except UsageLimitExceeded as error:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(error),
+            ) from error
+
+        file_path.write_bytes(content)
+        job = create_ingestion_job(user_id, filename, str(file_path))
+    except HTTPException:
+        raise
+    except Exception as error:
+        file_path.unlink(missing_ok=True)
+        logger.exception("Could not queue document ingestion")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not queue document processing",
+        ) from error
+
+    return {
+        "message": "Document accepted for processing",
+        "job_id": job["id"],
+        "filename": filename,
+        "status": job["status"],
+    }
+
+
+@app.get("/documents/jobs/{job_id}")
+def get_document_job(
+    job_id: str,
+    user_id: int = Depends(rate_limited_user("read")),
+):
+    job = get_ingestion_job(job_id, user_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ingestion job not found",
+        )
+    return {"job": job}
 
 
 # --------------------------------------------------

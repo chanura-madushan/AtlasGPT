@@ -11,7 +11,7 @@
 
 ### Your documents. Your AI. Your knowledge.
 
-AtlasGPT is a local-first AI assistant that lets users upload documents, ask questions about their content, and interact with a locally hosted language model through Telegram or a REST API.
+AtlasGPT is a local-first AI assistant that lets users upload documents, ask questions about their content, and interact with a locally hosted language model through a browser interface, Telegram, or a REST API.
 
 [Repository](https://github.com/chanura-madushan/AtlasGPT) · [Report a bug](https://github.com/chanura-madushan/AtlasGPT/issues)
 
@@ -31,6 +31,7 @@ Users can:
 - Ask questions about uploaded documents.
 - Retrieve relevant document passages using semantic search.
 - Maintain separate conversation histories.
+- Use the authenticated browser API for the web interface.
 - Interact through a Telegram bot.
 - Access functionality through an authenticated REST API.
 
@@ -38,13 +39,15 @@ AtlasGPT uses Ollama for local language model inference and ChromaDB for persist
 
 The project is designed to make document-based AI accessible while providing practical experience with LLMs, RAG, backend development, databases, and application security.
 
-> **Project status:** V1 implementation. The project is intended for local and self-hosted use. It is not yet a fully production-hardened public service.
+> **Project status:** Backend development is ongoing. The repository includes browser authentication, conversation management, and persistent asynchronous ingestion. Production launch still requires external infrastructure, backups, monitoring, and workload validation.
 
 ## Features
 
 | Feature | Description |
 |---|---|
 | Local LLM inference | Generate responses using locally hosted Ollama models. |
+| Web authentication | Register, log in, and use browser sessions. |
+| Conversation management | List, view, and delete conversation histories. |
 | Telegram chatbot | Interact with AtlasGPT through Telegram. |
 | REST API | Access AtlasGPT through FastAPI. |
 | Document uploads | Upload PDF, TXT, and DOCX files. |
@@ -58,6 +61,7 @@ The project is designed to make document-based AI accessible while providing pra
 | API authentication | Protect API endpoints using bearer API keys. |
 | Rate limiting | Limit authenticated API requests to 30 requests per user per 60 seconds. |
 | Credential revocation | Revoke an API credential through the REST API. |
+| Queued ingestion | Persist upload jobs and process them with a separate worker. |
 | Automated testing | Test core functionality using pytest. |
 
 ## Architecture
@@ -351,8 +355,17 @@ API credentials are stored as SHA-256 hashes rather than plaintext keys.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/` | Check API availability. |
+| GET | `/plans` | List guest, free, and paid plan limits. |
+| POST | `/auth/guest` | Start a short-lived guest session. |
+| POST | `/auth/register` | Register an account. |
+| POST | `/auth/login` | Start an authenticated browser session. |
+| GET | `/auth/me` | Get the current session and plan. |
+| POST | `/auth/logout` | Revoke the current session. |
+| GET | `/account/usage` | Get plan and usage counters. |
 | POST | `/chat` | Send a message to AtlasGPT. |
-| POST | `/documents/upload` | Upload and index a document. |
+| POST | `/documents/upload` | Upload and index a document synchronously. |
+| POST | `/documents/upload-async` | Queue document indexing. |
+| GET | `/documents/jobs/{job_id}` | Check queued ingestion status. |
 | GET | `/documents` | List your uploaded documents. |
 | DELETE | `/documents/{filename}` | Delete one of your documents. |
 | DELETE | `/credentials` | Revoke your current API credential. |
@@ -381,6 +394,10 @@ Example successful response:
 Each conversation should use a consistent conversation ID to maintain its conversation history.
 
 ### Upload a document
+
+Synchronous indexing: `POST /documents/upload`.
+
+Queued indexing: `POST /documents/upload-async` returns HTTP 202 and a job ID. Run `python -m src.workers.ingestion_worker`, then poll `GET /documents/jobs/{job_id}`. The API and worker must share the jobs database, uploaded files, and ChromaDB data directory.
 
 `POST /documents/upload`
 
@@ -479,20 +496,17 @@ The tests cover:
 - Ollama responses and error handling.
 - Telegram commands and message handling.
 
-**Latest verified baseline: 104 passing tests.**
+**Continuous integration:** GitHub Actions runs the backend pytest suite on pushes and pull requests. The latest completed CI run reported 175 passing tests; plan-catalog changes added afterward are awaiting a fresh run.
 
 ## Roadmap
 
 Potential improvements after V1:
 
-- [ ] Public API credential registration and management.
-- [ ] Web interface for users without Telegram.
-- [ ] Production deployment and hosting.
-- [ ] Stronger operational monitoring and logging.
-- [ ] Improved API rate limiting for distributed deployments.
-- [ ] More document formats and multimodal support.
-- [ ] Improved conversation management.
-- [ ] Additional security and scalability improvements.
+- [ ] Move production persistence to PostgreSQL and shared object storage.
+- [ ] Replace the single-host SQLite ingestion queue with a managed distributed queue for multi-host deployments.
+- [ ] Add plan entitlements, usage accounting, and payment-provider integration.
+- [ ] Add operational metrics, alerting, backups, and restore automation.
+- [ ] Complete load, security, and recovery testing before public launch.
 
 These are future improvements, not claims about completed V1 functionality.
 

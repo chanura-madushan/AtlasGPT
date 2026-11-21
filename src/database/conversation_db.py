@@ -80,6 +80,19 @@ def init_db():
             ON web_sessions (user_id)
         """)
 
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS guest_sessions (
+                token_hash TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL UNIQUE,
+                expires_at TIMESTAMP NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        connection.execute("""
+            CREATE INDEX IF NOT EXISTS idx_guest_sessions_expiry
+            ON guest_sessions (expires_at)
+        """)
+
 
 def save_message(
     user_id: int,
@@ -223,10 +236,20 @@ def generate_web_user_id() -> int:
                 (user_id,),
             ).fetchone()
 
+            existing_guest = connection.execute(
+                """
+                SELECT 1 FROM guest_sessions
+                WHERE user_id = ?
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+
             if not any((
                 existing_message,
                 existing_credential,
                 existing_account,
+                existing_guest,
             )):
                 return user_id
 
@@ -361,21 +384,46 @@ def create_web_session(
     return token
 
 
-def get_user_by_session(token: str) -> int | None:
-    """Return the user ID for a valid, unexpired session."""
+def create_guest_session(expires_in_hours: int = 2) -> tuple[int, str]:
+    """Create a short-lived anonymous session and return its user ID and token."""
+    if expires_in_hours < 1:
+        raise ValueError("Guest session duration must be at least one hour.")
 
+    user_id = generate_web_user_id()
+    token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=expires_in_hours)
+    ).isoformat()
+
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute(
+            """
+            INSERT INTO guest_sessions (token_hash, user_id, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (token_hash, user_id, expires_at),
+        )
+
+    return user_id, token
+
+
+def get_user_by_session(token: str) -> int | None:
+    """Return the user ID for a valid web or guest session."""
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     now = datetime.now(timezone.utc).isoformat()
 
     with sqlite3.connect(DATABASE_PATH) as connection:
         result = connection.execute(
             """
-            SELECT user_id
-            FROM web_sessions
-            WHERE token_hash = ?
-                AND expires_at > ?
+            SELECT user_id FROM web_sessions
+            WHERE token_hash = ? AND expires_at > ?
+            UNION ALL
+            SELECT user_id FROM guest_sessions
+            WHERE token_hash = ? AND expires_at > ?
+            LIMIT 1
             """,
-            (token_hash, now),
+            (token_hash, now, token_hash, now),
         ).fetchone()
 
     return result[0] if result else None
@@ -387,15 +435,16 @@ def revoke_web_session(token: str) -> bool:
     token_hash = hashlib.sha256(token.encode()).hexdigest()
 
     with sqlite3.connect(DATABASE_PATH) as connection:
-        cursor = connection.execute(
-            """
-            DELETE FROM web_sessions
-            WHERE token_hash = ?
-            """,
+        web_cursor = connection.execute(
+            "DELETE FROM web_sessions WHERE token_hash = ?",
+            (token_hash,),
+        )
+        guest_cursor = connection.execute(
+            "DELETE FROM guest_sessions WHERE token_hash = ?",
             (token_hash,),
         )
 
-    return cursor.rowcount > 0
+    return web_cursor.rowcount > 0 or guest_cursor.rowcount > 0
 
 
 def create_api_credential(user_id: int) -> str:
