@@ -57,3 +57,11 @@ def test_canceled_paid_plan_falls_back_to_free(tmp_path, monkeypatch):
     usage_db.set_user_plan(100, "paid", status="canceled")
 
     assert usage_db.get_user_plan(100) == "free"
+
+
+def test_plan_catalog_includes_all_supported_plans():
+    catalog = {plan["id"]: plan for plan in usage_db.get_plan_catalog()}
+
+    assert set(catalog) == {"guest", "free", "paid"}
+    assert catalog["paid"]["fair_use"] is True
+    assert catalog["paid"]["chat_daily_limit"] > catalog["free"]["chat_daily_limit"]
