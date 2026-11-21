@@ -621,6 +621,9 @@ async def upload_document(
             "chunks": chunks,
         }
 
+    except HTTPException:
+        raise
+
     except Exception as error:
         logger.exception("Document processing failed")
 
@@ -688,6 +691,8 @@ async def upload_document_async(
 
         file_path.write_bytes(content)
         job = create_ingestion_job(user_id, filename, str(file_path))
+    except HTTPException:
+        raise
     except Exception as error:
         file_path.unlink(missing_ok=True)
         logger.exception("Could not queue document ingestion")
