@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { ApiError } from '../services/api'
+import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Register() {
   const { register, isAuthenticated } = useAuth()
@@ -51,12 +52,12 @@ export default function Register() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-atlas-pearl px-6 py-12">
       <div className="w-full max-w-md">
-        <Link
+        <div className="mb-8 flex items-center justify-between"><Link
           to="/"
-          className="mb-10 block text-center font-heading text-3xl font-bold text-atlas-navy"
+          className="font-heading text-2xl font-bold text-atlas-navy"
         >
-          AtlasGPT<span className="text-atlas-cyan">.</span>
-        </Link>
+          AtlasGPT<span className="text-[#D83995]">.</span>
+        </Link><ThemeToggle /></div>
 
         <section className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
           <div className="text-center">
