@@ -10,7 +10,7 @@ import type {
   ConversationMessagesResponse,
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\\/$/, '')
 
 export class ApiError extends Error {
   status: number
@@ -46,7 +46,7 @@ async function apiRequest<T>(
   return response.json()
 }
 
-export const authApi = {
+export const authApi = {\n  guest: () =>\n    apiRequest<AuthResponse>('/auth/guest', { method: 'POST' }),\n
   register: (email: string, password: string) =>
     apiRequest<AuthResponse>('/auth/register', {
       method: 'POST',
@@ -74,7 +74,7 @@ export const documentApi = {
   list: () =>
     apiRequest<DocumentListResponse>('/documents'),
 
-  upload: (file: File) => {
+  uploadAsync: (file: File) => {\n    const formData = new FormData()\n    formData.append('file', file)\n    return apiRequest<{ message: string; job_id: string; filename: string; status: string }>('/documents/upload-async', { method: 'POST', body: formData })\n  },\n\n  job: (jobId: string) =>\n    apiRequest<{ job: { id: string; filename: string; status: 'queued' | 'processing' | 'completed' | 'failed'; chunks: number; error: string | null; attempts: number } }>(`/documents/jobs/${encodeURIComponent(jobId)}`),\n\n  upload: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
 
