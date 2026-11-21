@@ -34,6 +34,7 @@ from src.database.usage_db import (
     init_usage_db,
     consume_usage,
     get_usage_summary,
+    get_plan_catalog,
     get_user_plan,
     set_user_plan,
     UsageLimitExceeded,
@@ -508,6 +509,15 @@ def chat(
         )
 
     return {"reply": answer}
+
+
+# --------------------------------------------------
+# Public Plan Catalog
+# --------------------------------------------------
+
+@app.get("/plans")
+def list_plans():
+    return {"plans": get_plan_catalog()}
 
 
 # --------------------------------------------------
