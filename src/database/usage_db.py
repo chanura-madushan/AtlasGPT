@@ -14,6 +14,10 @@ class UsageLimitExceeded(Exception):
 
 
 PLAN_LIMITS = {
+    "guest": {
+        "chat_daily": int(os.getenv("GUEST_CHAT_DAILY_LIMIT", "10")),
+        "upload_monthly": int(os.getenv("GUEST_UPLOAD_MONTHLY_LIMIT", "1")),
+    },
     "free": {
         "chat_daily": int(os.getenv("FREE_CHAT_DAILY_LIMIT", "50")),
         "upload_monthly": int(os.getenv("FREE_UPLOAD_MONTHLY_LIMIT", "10")),
@@ -37,7 +41,7 @@ def init_usage_db():
         connection.execute("""
             CREATE TABLE IF NOT EXISTS user_plans (
                 user_id INTEGER PRIMARY KEY,
-                plan TEXT NOT NULL CHECK (plan IN ('free', 'paid')),
+                plan TEXT NOT NULL CHECK (plan IN ('guest', 'free', 'paid')),
                 status TEXT NOT NULL DEFAULT 'active'
                     CHECK (status IN ('active', 'canceled', 'expired')),
                 updated_at TEXT NOT NULL
@@ -72,8 +76,8 @@ def get_user_plan(user_id: int) -> str:
 def set_user_plan(user_id: int, plan: str, status: str = "active") -> None:
     if user_id <= 0:
         raise ValueError("user_id must be greater than zero.")
-    if plan not in {"free", "paid"}:
-        raise ValueError("plan must be 'free' or 'paid'.")
+    if plan not in {"guest", "free", "paid"}:
+        raise ValueError("plan must be 'guest', 'free', or 'paid'.")
     if status not in {"active", "canceled", "expired"}:
         raise ValueError("Invalid subscription status.")
     now = datetime.now(timezone.utc).isoformat()
