@@ -489,9 +489,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="rounded-full border border-atlas-mist bg-atlas-pearl px-3 py-2 text-xs font-medium text-atlas-deep-cyan">
-            Personal workspace
-          </div>
+          <div className="flex items-center gap-3"><ThemeToggle /><span className="hidden rounded-full border border-atlas-mist bg-atlas-pearl px-3 py-2 text-xs font-medium text-atlas-deep-cyan sm:inline-flex">Personal workspace</span></div>
         </header>
 
         {/* Workspace layout */}
