@@ -355,8 +355,17 @@ API credentials are stored as SHA-256 hashes rather than plaintext keys.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/` | Check API availability. |
+| GET | `/plans` | List guest, free, and paid plan limits. |
+| POST | `/auth/guest` | Start a short-lived guest session. |
+| POST | `/auth/register` | Register an account. |
+| POST | `/auth/login` | Start an authenticated browser session. |
+| GET | `/auth/me` | Get the current session and plan. |
+| POST | `/auth/logout` | Revoke the current session. |
+| GET | `/account/usage` | Get plan and usage counters. |
 | POST | `/chat` | Send a message to AtlasGPT. |
-| POST | `/documents/upload` | Upload and index a document. |
+| POST | `/documents/upload` | Upload and index a document synchronously. |
+| POST | `/documents/upload-async` | Queue document indexing. |
+| GET | `/documents/jobs/{job_id}` | Check queued ingestion status. |
 | GET | `/documents` | List your uploaded documents. |
 | DELETE | `/documents/{filename}` | Delete one of your documents. |
 | DELETE | `/credentials` | Revoke your current API credential. |
@@ -487,7 +496,7 @@ The tests cover:
 - Ollama responses and error handling.
 - Telegram commands and message handling.
 
-**Continuous integration:** GitHub Actions runs the backend pytest suite on pushes and pull requests. Run `python -m pytest -v` locally against the latest branch before merging.
+**Continuous integration:** GitHub Actions runs the backend pytest suite on pushes and pull requests. The latest completed CI run reported 175 passing tests; plan-catalog changes added afterward are awaiting a fresh run.
 
 ## Roadmap
 
