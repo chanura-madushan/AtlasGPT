@@ -1,14 +1,7 @@
-import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { Theme } from './theme-context'
+import { ThemeContext } from './theme-context'
 
-export type Theme = 'light' | 'dark'
-
-export interface ThemeContextValue {
-  theme: Theme
-  toggleTheme: () => void
-  setTheme: (theme: Theme) => void
-}
-
-export const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 const STORAGE_KEY = 'atlasgpt-theme'
 
 function getInitialTheme(): Theme {
