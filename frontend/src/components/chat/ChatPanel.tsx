@@ -2,8 +2,6 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react'
 import {
   Send,
-  Bot,
-  User,
   LoaderCircle,
   Sparkles,
   MessageSquare,
