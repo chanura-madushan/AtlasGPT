@@ -1,5 +1,6 @@
 
 import { useEffect, useState, type ChangeEvent } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   FileText,
   MessageSquare,
@@ -24,6 +25,7 @@ import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Dashboard() {
   const { logout } = useAuth()
+  const reduceMotion = useReducedMotion()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -313,7 +315,7 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="flex min-h-screen bg-atlas-cloud text-atlas-navy">
+    <motion.main initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: reduceMotion ? 0 : 0.3 }} className="flex min-h-screen bg-atlas-cloud text-atlas-navy">
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
@@ -729,6 +731,6 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
-    </main>
+    </motion.main>
   )
 }
