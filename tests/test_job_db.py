@@ -62,3 +62,23 @@ def test_failed_job_can_be_retried(tmp_path, monkeypatch):
     failed = job_db.get_ingestion_job(created["id"], 42)
 
     assert failed["status"] == "failed"
+
+
+def test_expired_worker_lease_requeues_job(tmp_path, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import sqlite3
+
+    monkeypatch.setattr(job_db, "DATABASE_PATH", tmp_path / "jobs.db")
+    job_db.init_job_db()
+    created = job_db.create_ingestion_job(42, "retry.txt", "/uploads/retry.txt")
+    first = job_db.claim_ingestion_job()
+
+    stale_time = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    with sqlite3.connect(job_db.DATABASE_PATH) as connection:
+        connection.execute(
+            "UPDATE ingestion_jobs SET claimed_at = ? WHERE id = ?",
+            (stale_time, created["id"]),
+        )
+
+    recovered = job_db.claim_ingestion_job(lease_seconds=60)
+    assert recovered["id"] == first["id"]
