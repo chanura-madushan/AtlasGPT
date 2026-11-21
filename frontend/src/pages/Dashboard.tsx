@@ -8,6 +8,7 @@ import {
   LogOut,
   Menu,
   Trash2,
+  ShieldCheck,
 } from 'lucide-react'
 
 import { useAuth } from '../hooks/useAuth'
