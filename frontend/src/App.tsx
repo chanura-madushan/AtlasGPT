@@ -1,330 +1,122 @@
-
+import { lazy, Suspense } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowDown, ArrowRight, FileText, History, MessageSquare, Search, ShieldCheck, Sparkles } from 'lucide-react'
 import Navbar from './components/navigation/Navbar'
-import heroImage from './assets/hero.png'
 
-import {
-  FileText,
-  MessageSquare,
-  Search,
-  History,
-} from 'lucide-react'
+const KnowledgeOrbit = lazy(() => import('./components/visuals/KnowledgeOrbit'))
+
+const features = [
+  { icon: FileText, eyebrow: '01 / INGEST', title: 'Your documents, understood', description: 'Bring PDFs, text files and Word documents into one searchable knowledge space.', accent: 'cyan' },
+  { icon: MessageSquare, eyebrow: '02 / EXPLORE', title: 'Conversations with context', description: 'Ask natural questions and keep the thread of your thinking across conversations.', accent: 'magenta' },
+  { icon: Search, eyebrow: '03 / VERIFY', title: 'Answers grounded in sources', description: 'Get responses informed by relevant passages, not unsupported guesswork.', accent: 'cyan' },
+  { icon: History, eyebrow: '04 / RETURN', title: 'Pick up where you left off', description: 'Your conversation history keeps important discoveries within reach.', accent: 'magenta' },
+]
+
+const steps = [
+  { number: '01', title: 'Add your sources', description: 'Upload the documents you are studying, researching or working with.' },
+  { number: '02', title: 'Build your knowledge space', description: 'AtlasGPT indexes the content so relevant information can be retrieved.' },
+  { number: '03', title: 'Ask better questions', description: 'Explore ideas and get answers grounded in your own material.' },
+]
 
 function App() {
+  const reduceMotion = useReducedMotion()
+  const rise = reduceMotion ? {} : { initial: { opacity: 0, y: 22 }, whileInView: { opacity: 1, y: 0 }, viewport: { once: true, amount: 0.18 }, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] as const } }
+
   return (
-<main className="min-h-screen overflow-x-hidden bg-atlas-pearl pt-[81px] text-atlas-navy">      <Navbar />
+    <main className="min-h-screen overflow-hidden bg-atlas-pearl pt-[76px] text-atlas-navy">
+      <Navbar />
 
-      {/* Hero section */}
-      <section className="relative mx-auto grid min-h-[85vh] max-w-7xl items-center gap-12 px-6 py-20 lg:grid-cols-2 lg:px-12">
-        <div className="z-10">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-atlas-mist bg-white px-4 py-2 text-sm text-atlas-deep-cyan">
-            <span className="h-2 w-2 rounded-full bg-atlas-cyan" />
-            Your personal AI knowledge assistant
+      <section className="hero-grid relative mx-auto grid min-h-[calc(100svh-76px)] max-w-7xl items-center gap-8 px-6 py-16 sm:py-20 lg:grid-cols-[1.02fr_.98fr] lg:px-12">
+        <div className="hero-copy relative z-10">
+          <motion.div {...(reduceMotion ? {} : { initial: { opacity: 0, y: 12 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5 } })} className="mb-7 inline-flex items-center gap-2.5 rounded-full border border-atlas-mist bg-white/80 px-4 py-2 text-xs font-semibold tracking-wide text-atlas-deep-cyan shadow-sm shadow-atlas-navy/5">
+            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-atlas-cyan opacity-30" /><span className="relative inline-flex h-2 w-2 rounded-full bg-atlas-cyan" /></span>
+            A clearer way to work with what you know
+          </motion.div>
+          <motion.h1 {...(reduceMotion ? {} : { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.65, delay: 0.08 } })} className="max-w-[650px] font-heading text-[clamp(3.2rem,7vw,6.1rem)] font-semibold leading-[.99] tracking-[-.065em]">
+            Make sense of
+            <span className="hero-gradient block">everything you know.</span>
+          </motion.h1>
+          <motion.p {...(reduceMotion ? {} : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.6, delay: 0.18 } })} className="mt-7 max-w-[520px] text-base leading-8 text-atlas-slate sm:text-lg">
+            Your documents hold the context. AtlasGPT helps you connect it, question it, and turn information into understanding.
+          </motion.p>
+          <motion.div {...(reduceMotion ? {} : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.55, delay: 0.26 } })} className="mt-9 flex flex-wrap items-center gap-3">
+            <a href="/register" className="group inline-flex items-center gap-3 rounded-full bg-atlas-navy px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-atlas-navy/15 transition hover:-translate-y-0.5 hover:bg-atlas-deep-cyan">Create your workspace <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" /></a>
+            <a href="#how-it-works" className="inline-flex items-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold text-atlas-slate transition hover:text-atlas-cyan">See how it works <ArrowDown size={15} /></a>
+          </motion.div>
+          <div className="mt-12 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-atlas-mist pt-6 text-xs font-medium text-atlas-slate">
+            <span className="inline-flex items-center gap-2"><ShieldCheck size={15} className="text-atlas-cyan" /> Your own source material</span>
+            <span className="inline-flex items-center gap-2"><Sparkles size={15} className="text-atlas-magenta" /> Built for deeper understanding</span>
           </div>
-
-          <h1 className="max-w-xl font-heading text-5xl font-bold leading-tight tracking-tight sm:text-6xl lg:text-7xl">
-            Your knowledge.
-            <span className="block text-atlas-cyan">
-              Connected.
-            </span>
-          </h1>
-
-          <p className="mt-6 max-w-lg text-base leading-8 text-atlas-slate sm:text-lg">
-            Bring your documents together, ask meaningful questions,
-            and discover insights with an AI assistant grounded in
-            your own knowledge.
-          </p>
-
-          <div className="mt-9 flex flex-wrap items-center gap-4">
-            <a
-              href="#get-started"
-              className="rounded-xl bg-atlas-cyan px-7 py-3.5 font-semibold text-white transition hover:bg-atlas-deep-cyan"
-            >
-              Get started
-            </a>
-
-            <a
-              href="#features"
-              className="rounded-xl border border-atlas-mist bg-white px-7 py-3.5 font-semibold text-atlas-navy transition hover:border-atlas-cyan hover:text-atlas-deep-cyan"
-            >
-              Explore features
-            </a>
-          </div>
-
-          <p className="mt-6 text-sm text-atlas-slate">
-            Your documents. Your knowledge. Your answers.
-          </p>
         </div>
 
-        {/* Hero visual */}
-        <div className="relative flex items-center justify-center">
-          <div className="absolute h-72 w-72 rounded-full bg-atlas-cyan/10 blur-3xl sm:h-96 sm:w-96" />
+        <motion.div {...(reduceMotion ? {} : { initial: { opacity: 0, scale: .96 }, animate: { opacity: 1, scale: 1 }, transition: { duration: .9, delay: .12 } })} className="hero-visual relative mx-auto flex w-full max-w-[620px] items-center justify-center">
+          <div className="hero-halo absolute inset-[8%] rounded-full" />
+          <div className="relative aspect-square w-full">
+            <Suspense fallback={<div className="knowledge-orbit__fallback" />}>
+              <KnowledgeOrbit />
+            </Suspense>
+            <div className="orbit-note orbit-note--top"><span className="orbit-note__dot" /> CONNECT IDEAS</div>
+            <div className="orbit-note orbit-note--bottom">YOUR KNOWLEDGE, IN MOTION</div>
+          </div>
+        </motion.div>
+      </section>
 
-          <img
-            src={heroImage}
-            alt="Abstract AtlasGPT knowledge visualization"
-            className="relative z-10 w-full max-w-lg object-contain"
-          />
+      <section className="border-y border-atlas-mist bg-atlas-cloud/70 px-6 py-7 lg:px-12">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 text-xs font-medium uppercase tracking-[.16em] text-atlas-slate">
+          <span>Less searching</span><span className="hidden h-px flex-1 bg-atlas-mist sm:block" /><span>More connecting</span><span className="hidden h-px flex-1 bg-atlas-mist sm:block" /><span>Better questions</span><span className="hidden h-px flex-1 bg-atlas-mist sm:block" /><span>Clearer understanding</span>
         </div>
       </section>
 
-      {/* Features section */}
-      <section
-        id="features"
-        className="bg-atlas-cloud px-6 py-24 lg:px-12"
-      >
+      <section id="features" className="scroll-mt-24 px-6 py-24 sm:py-28 lg:px-12">
         <div className="mx-auto max-w-7xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-atlas-cyan">
-              What AtlasGPT offers
-            </p>
-
-            <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-              Everything you need to understand your documents.
-            </h2>
-
-            <p className="mt-5 leading-7 text-atlas-slate">
-              Turn scattered documents into a connected knowledge
-              space. Find information, ask questions, and keep
-              your conversations grounded in your sources.
-            </p>
-          </div>
-
-          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            <article className="rounded-2xl border border-atlas-mist bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-atlas-navy/5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-deep-cyan">
-                <FileText size={24} strokeWidth={1.8} />
-              </div>
-
-              <h3 className="mt-6 font-heading text-lg font-bold">
-                Document intelligence
-              </h3>
-
-              <p className="mt-3 text-sm leading-7 text-atlas-slate">
-                Upload PDF, TXT, and DOCX files and let AtlasGPT
-                process their content.
-              </p>
-            </article>
-
-            <article className="rounded-2xl border border-atlas-mist bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-atlas-navy/5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-atlas-magenta/10 text-atlas-magenta">
-                <MessageSquare size={24} strokeWidth={1.8} />
-              </div>
-
-              <h3 className="mt-6 font-heading text-lg font-bold">
-                Context-aware chat
-              </h3>
-
-              <p className="mt-3 text-sm leading-7 text-atlas-slate">
-                Ask questions and receive answers informed by the
-                content of your documents.
-              </p>
-            </article>
-
-            <article className="rounded-2xl border border-atlas-mist bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-atlas-navy/5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-deep-cyan">
-                <Search size={24} strokeWidth={1.8} />
-              </div>
-
-              <h3 className="mt-6 font-heading text-lg font-bold">
-                Source-backed answers
-              </h3>
-
-              <p className="mt-3 text-sm leading-7 text-atlas-slate">
-                Connect answers to relevant document sources instead
-                of relying on unsupported claims.
-              </p>
-            </article>
-
-            <article className="rounded-2xl border border-atlas-mist bg-white p-7 transition duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-atlas-navy/5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-atlas-magenta/10 text-atlas-magenta">
-                <History size={24} strokeWidth={1.8} />
-              </div>
-
-              <h3 className="mt-6 font-heading text-lg font-bold">
-                Conversation history
-              </h3>
-
-              <p className="mt-3 text-sm leading-7 text-atlas-slate">
-                Continue previous conversations and keep track of
-                your knowledge discoveries.
-              </p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works section */}
-      <section
-        id="how-it-works"
-        className="bg-atlas-pearl px-6 py-24 lg:px-12"
-      >
-        <div className="mx-auto max-w-7xl">
-          <div className="mx-auto max-w-2xl text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-atlas-cyan">
-              A simple workflow
-            </p>
-
-            <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">
-              From documents to discoveries.
-            </h2>
-
-            <p className="mt-5 leading-7 text-atlas-slate">
-              Your knowledge journey starts with three simple steps.
-            </p>
-          </div>
-
-          <div className="relative mt-20 grid gap-12 md:grid-cols-3 md:gap-8">
-            {[
-              {
-                number: '01',
-                title: 'Upload your documents',
-                description:
-                  'Bring your PDF, TXT and DOCX files into one organized knowledge space.',
-              },
-              {
-                number: '02',
-                title: 'Let AtlasGPT understand',
-                description:
-                  'Your documents are processed, divided into meaningful chunks and indexed for retrieval.',
-              },
-              {
-                number: '03',
-                title: 'Ask and discover',
-                description:
-                  'Ask natural-language questions and explore answers grounded in your uploaded sources.',
-              },
-            ].map((step) => (
-              <article key={step.number} className="relative text-center">
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-atlas-cyan/10 font-heading text-xl font-bold text-atlas-deep-cyan">
-                  {step.number}
-                </div>
-
-                <h3 className="mt-7 font-heading text-xl font-bold">
-                  {step.title}
-                </h3>
-
-                <p className="mx-auto mt-4 max-w-sm text-sm leading-7 text-atlas-slate">
-                  {step.description}
-                </p>
-              </article>
+          <motion.div {...rise} className="max-w-2xl">
+            <p className="section-kicker">A workspace for your thinking</p>
+            <h2 className="section-heading">Not another place to store files.<br /><span className="text-atlas-slate">A better way to use them.</span></h2>
+            <p className="mt-6 max-w-xl text-base leading-8 text-atlas-slate">AtlasGPT brings your material into the conversation, so you can spend less time hunting for information and more time understanding it.</p>
+          </motion.div>
+          <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {features.map(({ icon: Icon, eyebrow, title, description, accent }, index) => (
+              <motion.article key={eyebrow} {...rise} transition={{ duration: .5, delay: index * .07 }} whileHover={reduceMotion ? undefined : { y: -5 }} className="feature-card group rounded-2xl border border-atlas-mist bg-white p-6 sm:p-7">
+                <div className={`feature-icon ${accent === 'magenta' ? 'feature-icon--magenta' : ''}`}><Icon size={21} strokeWidth={1.7} /></div>
+                <p className="mt-8 text-[10px] font-bold tracking-[.18em] text-atlas-slate">{eyebrow}</p>
+                <h3 className="mt-3 font-heading text-lg font-semibold tracking-tight">{title}</h3>
+                <p className="mt-3 text-sm leading-7 text-atlas-slate">{description}</p>
+              </motion.article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* About section */}
-      <section
-        id="about"
-        className="bg-atlas-cloud px-6 py-24 lg:px-12"
-      >
-        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-atlas-cyan">
-              About AtlasGPT
-            </p>
-
-            <h2 className="mt-4 max-w-xl font-heading text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-              Your knowledge deserves more than a search bar.
-            </h2>
-
-            <p className="mt-6 max-w-xl leading-8 text-atlas-slate">
-              AtlasGPT is a local-first AI document assistant
-              designed to help you understand information in
-              your own documents.
-            </p>
-
-            <p className="mt-4 max-w-xl leading-8 text-atlas-slate">
-              Instead of searching through pages manually,
-              you can ask questions, explore relevant context,
-              and continue meaningful conversations with your
-              knowledge.
-            </p>
-
-            <a
-              href="#get-started"
-              className="mt-8 inline-flex rounded-xl bg-atlas-cyan px-7 py-3.5 font-semibold text-white transition hover:bg-atlas-deep-cyan"
-            >
-              Explore AtlasGPT
-            </a>
-          </div>
-
-          <div className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-3xl border border-atlas-mist bg-white p-10">
-            <div className="absolute h-64 w-64 rounded-full bg-atlas-cyan/10 blur-3xl" />
-
-            <div className="relative w-full max-w-sm space-y-4">
-              <div className="rounded-2xl border border-atlas-mist bg-atlas-pearl p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-atlas-cyan">
-                  Your documents
-                </p>
-                <p className="mt-2 font-heading font-semibold">
-                  Research.pdf
-                </p>
-              </div>
-
-              <div className="flex justify-center text-2xl text-atlas-cyan">
-                ↓
-              </div>
-
-              <div className="rounded-2xl border border-atlas-mist bg-atlas-pearl p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-atlas-magenta">
-                  AtlasGPT
-                </p>
-                <p className="mt-2 font-heading font-semibold">
-                  Knowledge connected.
-                </p>
-              </div>
-
-              <div className="flex justify-center text-2xl text-atlas-cyan">
-                ↓
-              </div>
-
-              <div className="rounded-2xl border border-atlas-mist bg-atlas-pearl p-5 shadow-sm">
-                <p className="text-xs font-semibold uppercase tracking-wider text-atlas-cyan">
-                  Your insight
-                </p>
-                <p className="mt-2 font-heading font-semibold">
-                  Answers grounded in your sources.
-                </p>
-              </div>
-            </div>
+      <section id="how-it-works" className="scroll-mt-24 bg-atlas-navy px-6 py-24 text-white sm:py-28 lg:px-12">
+        <div className="mx-auto max-w-7xl">
+          <motion.div {...rise} className="grid gap-8 lg:grid-cols-[.8fr_1.2fr] lg:items-end">
+            <div><p className="section-kicker section-kicker--dark">A simple process</p><h2 className="max-w-lg font-heading text-4xl font-semibold leading-tight tracking-[-.045em] sm:text-5xl">From scattered information to connected insight.</h2></div>
+            <p className="max-w-xl text-sm leading-7 text-white/60 lg:justify-self-end">Your workflow stays simple. Bring your sources, give AtlasGPT a moment to index them, then ask the questions that move your work forward.</p>
+          </motion.div>
+          <div className="mt-16 grid gap-10 md:grid-cols-3 md:gap-8">
+            {steps.map((step, index) => (
+              <motion.article key={step.number} {...rise} transition={{ duration: .5, delay: index * .08 }} className="border-t border-white/20 pt-6">
+                <span className="font-heading text-sm font-semibold text-[#D83995]">{step.number}</span>
+                <h3 className="mt-7 font-heading text-xl font-semibold tracking-tight">{step.title}</h3>
+                <p className="mt-3 max-w-sm text-sm leading-7 text-white/60">{step.description}</p>
+              </motion.article>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-atlas-navy px-6 py-12 text-white lg:px-12">
-        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-8 sm:flex-row sm:items-center">
-          <div>
-            <a
-              href="/"
-              className="font-heading text-2xl font-bold tracking-tight"
-            >
-              AtlasGPT
-              <span className="text-atlas-cyan">.</span>
-            </a>
+      <section id="about" className="scroll-mt-24 px-6 py-24 sm:py-28 lg:px-12">
+        <motion.div {...rise} className="mx-auto grid max-w-7xl gap-12 rounded-[2rem] border border-atlas-mist bg-atlas-cloud p-8 sm:p-12 lg:grid-cols-[1fr_.8fr] lg:items-center lg:p-16">
+          <div><p className="section-kicker">Built around your sources</p><h2 className="section-heading">Your knowledge should work as hard as you do.</h2><p className="mt-6 max-w-xl text-base leading-8 text-atlas-slate">AtlasGPT is a document assistant for students, researchers and curious minds. It helps you revisit material, ask precise questions and build understanding from the information you bring.</p><a href="/register" className="mt-8 inline-flex items-center gap-3 rounded-full bg-atlas-cyan px-6 py-3.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-atlas-deep-cyan">Start exploring <ArrowRight size={16} /></a></div>
+          <div className="about-panel relative overflow-hidden rounded-2xl border border-atlas-mist bg-white p-6 sm:p-8"><div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-atlas-magenta/10 blur-3xl" /><div className="relative space-y-3"><div className="rounded-xl border border-atlas-mist bg-atlas-pearl p-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-atlas-slate">SOURCE</p><p className="mt-2 text-sm font-semibold">Research-paper.pdf</p><p className="mt-1 text-xs text-atlas-slate">A collection of ideas and evidence</p></div><div className="flex justify-center text-atlas-cyan"><ArrowDown size={20} /></div><div className="rounded-xl border border-atlas-mist bg-atlas-pearl p-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-atlas-magenta">CONTEXT</p><p className="mt-2 text-sm font-semibold">Relevant passages connected</p></div><div className="flex justify-center text-atlas-cyan"><ArrowDown size={20} /></div><div className="rounded-xl border border-atlas-cyan/30 bg-atlas-cyan/5 p-4"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-atlas-deep-cyan">UNDERSTANDING</p><p className="mt-2 text-sm font-semibold">A useful answer, grounded in your source</p></div></div></div>
+        </motion.div>
+      </section>
 
-            <p className="mt-3 text-sm text-white/60">
-              Knowledge, beautifully connected.
-            </p>
-          </div>
+      <section id="get-started" className="px-6 pb-24 lg:px-12">
+        <motion.div {...rise} className="cta-panel mx-auto max-w-7xl rounded-[2rem] px-8 py-14 text-center sm:px-14 sm:py-20"><p className="section-kicker section-kicker--dark">Your next question starts here</p><h2 className="mx-auto mt-4 max-w-2xl font-heading text-4xl font-semibold tracking-[-.05em] text-white sm:text-5xl">Bring your knowledge together.</h2><p className="mx-auto mt-5 max-w-lg text-sm leading-7 text-white/65">Start with the documents you already have. See what you can discover when they become part of the conversation.</p><a href="/register" className="mt-8 inline-flex items-center gap-3 rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-atlas-navy transition hover:-translate-y-0.5">Create your workspace <ArrowRight size={16} /></a></motion.div>
+      </section>
 
-          <div className="flex flex-wrap gap-6 text-sm text-white/70">
-            <a href="#features" className="transition hover:text-white">
-              Features
-            </a>
-            <a href="#how-it-works" className="transition hover:text-white">
-              How it works
-            </a>
-            <a href="#about" className="transition hover:text-white">
-              About
-            </a>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-10 max-w-7xl border-t border-white/10 pt-6 text-sm text-white/50">
-          © {new Date().getFullYear()} AtlasGPT. All rights reserved.
-        </div>
-      </footer>
+      <footer className="border-t border-atlas-mist px-6 py-9 lg:px-12"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 sm:flex-row sm:items-center"><a href="/" className="font-heading text-xl font-semibold tracking-tight">AtlasGPT<span className="text-[#D83995]">.</span><p className="mt-1 text-xs font-normal text-atlas-slate">Knowledge, beautifully connected.</p></a><div className="flex flex-wrap gap-6 text-xs font-medium text-atlas-slate"><a href="#features" className="hover:text-atlas-cyan">Features</a><a href="#how-it-works" className="hover:text-atlas-cyan">How it works</a><a href="#about" className="hover:text-atlas-cyan">About</a><a href="/login" className="hover:text-atlas-cyan">Sign in</a></div><p className="text-xs text-atlas-slate">© {new Date().getFullYear()} AtlasGPT</p></div></footer>
     </main>
   )
 }
