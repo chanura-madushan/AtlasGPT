@@ -1,6 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError } from '../services/api'
@@ -9,7 +9,6 @@ import ThemeToggle from '../components/theme/ThemeToggle'
 export default function Register() {
   const { register, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const reduceMotion = useReducedMotion()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -52,121 +51,10 @@ export default function Register() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-atlas-pearl px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-between"><Link
-          to="/"
-          className="font-heading text-2xl font-bold text-atlas-navy"
-        >
-          AtlasGPT<span className="text-[#D83995]">.</span>
-        </Link><ThemeToggle /></div>
-
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.35 }} className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
-          <div className="text-center">
-            <h1 className="font-heading text-2xl font-bold text-atlas-navy">
-              Create your account
-            </h1>
-
-            <p className="mt-3 text-sm leading-6 text-atlas-slate">
-              Start building your personal knowledge space.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-semibold text-atlas-navy"
-              >
-                Email address
-              </label>
-
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
-                className="w-full rounded-xl border border-atlas-mist px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan focus:ring-2 focus:ring-atlas-cyan/10"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-semibold text-atlas-navy"
-              >
-                Password
-              </label>
-
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="At least 8 characters"
-                autoComplete="new-password"
-                minLength={8}
-                required
-                className="w-full rounded-xl border border-atlas-mist px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan focus:ring-2 focus:ring-atlas-cyan/10"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="mb-2 block text-sm font-semibold text-atlas-navy"
-              >
-                Confirm password
-              </label>
-
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Re-enter your password"
-                autoComplete="new-password"
-                required
-                className="w-full rounded-xl border border-atlas-mist px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan focus:ring-2 focus:ring-atlas-cyan/10"
-              />
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-atlas-cyan px-5 py-3.5 font-semibold text-white transition hover:bg-atlas-deep-cyan disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? 'Creating account...' : 'Create account'}
-            </button>
-          </form>
-
-          <p className="mt-7 text-center text-sm text-atlas-slate">
-            Already have an account?{' '}
-            <Link
-              to="/login"
-              className="font-semibold text-atlas-deep-cyan hover:underline"
-            >
-              Sign in
-            </Link>
-          </p>
-        </motion.section>
-
-        <p className="mt-6 text-center text-xs text-atlas-slate">
-          Knowledge, beautifully connected.
-        </p>
-      </div>
+    <main className="flex min-h-screen items-c  return (
+    <main className="atlas-auth">
+      <section className="atlas-auth__visual"><a href="/" className="atlas-auth__brand">ATLAS<span>GPT.</span></a><div className="atlas-auth__statement"><span>A SPACE FOR YOUR CURIOSITY</span><h1>Collect ideas.<br/>Find the<br/><em>connections.</em></h1><p>Bring your documents into one place and turn them into a knowledge space you can explore.</p></div><div className="atlas-auth__coordinates">ATLASGPT / PRIVATE KNOWLEDGE WORKSPACE</div></section>
+      <section className="atlas-auth__form-side"><div className="atlas-auth__top"><a href="/" className="atlas-auth__mobile-brand">ATLAS<span style={{color:'#D83995'}}>GPT.</span></a><ThemeToggle/></div><div className="atlas-auth__card"><span className="atlas-overline">CREATE YOUR SPACE / 01</span><h2>Start with your sources.</h2><p>Create an account to keep your documents and conversations together.</p><form onSubmit={handleSubmit}><label>Email address<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" required/></label><label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="At least 8 characters" autoComplete="new-password" minLength={8} required/></label><label>Confirm password<input type="password" value={confirmPassword} onChange={event=>setConfirmPassword(event.target.value)} placeholder="Enter your password again" autoComplete="new-password" required/></label>{error&&<div className="atlas-auth__error" role="alert">{error}</div>}<button className="atlas-auth__submit" type="submit" disabled={loading}>{loading?'Creating your account…':'Create your account'} <ArrowRight size={15}/></button></form><p className="atlas-auth__switch">Already have an account? <Link to="/login">Sign in</Link></p></div><div className="atlas-auth__foot">YOUR SOURCES REMAIN YOURS. YOUR QUESTIONS LEAD THE WAY.</div></section>
     </main>
   )
 }
