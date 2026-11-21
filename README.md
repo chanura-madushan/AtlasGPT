@@ -487,7 +487,7 @@ The tests cover:
 - Ollama responses and error handling.
 - Telegram commands and message handling.
 
-**Continuous integration:** GitHub Actions runs the backend pytest suite on pushes and pull requests. A completed CI run for the ingestion queue and API changes reported 167 passing tests. Re-run the suite after pulling the latest branch commits.
+**Continuous integration:** GitHub Actions runs the backend pytest suite on pushes and pull requests. Run `python -m pytest -v` locally against the latest branch before merging.
 
 ## Roadmap
 
