@@ -614,7 +614,7 @@ async def upload_document_async(
             detail="No filename provided",
         )
 
-    filename = Path(file.filename.replace("\\\\", "/")).name
+    filename = Path(file.filename.replace("\\", "/")).name
     if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
