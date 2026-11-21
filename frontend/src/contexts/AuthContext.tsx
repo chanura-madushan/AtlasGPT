@@ -1,12 +1,4 @@
-
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react'
-
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { authApi } from '../services/api'
 import type { User } from '../types'
 
@@ -16,51 +8,31 @@ interface AuthContextType {
   isAuthenticated: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string) => Promise<void>
+  continueAsGuest: () => Promise<void>
   logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-interface AuthProviderProps {
-  children: ReactNode
-}
-
-export function AuthProvider({ children }: AuthProviderProps) {
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let active = true
-
-    async function checkAuth() {
-      try {
-        const currentUser = await authApi.me()
-
-        if (active) {
-          setUser(currentUser)
-        }
-      } catch {
-        if (active) {
-          setUser(null)
-        }
-      } finally {
-        if (active) {
-          setLoading(false)
-        }
-      }
-    }
-
-    checkAuth()
-
-    return () => {
-      active = false
-    }
+    authApi.me().then((currentUser) => {
+      if (active) setUser(currentUser)
+    }).catch(() => {
+      if (active) setUser(null)
+    }).finally(() => {
+      if (active) setLoading(false)
+    })
+    return () => { active = false }
   }, [])
 
   async function login(email: string, password: string) {
     await authApi.login(email, password)
-    const currentUser = await authApi.me()
-    setUser(currentUser)
+    setUser(await authApi.me())
   }
 
   async function register(email: string, password: string) {
@@ -68,22 +40,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await login(email, password)
   }
 
-  async function continueAsGuest() {\n    await authApi.guest()\n    const currentUser = await authApi.me()\n    setUser(currentUser)\n  }\n\n  async function logout() {
+  async function continueAsGuest() {
+    await authApi.guest()
+    setUser(await authApi.me())
+  }
+
+  async function logout() {
     await authApi.logout()
     setUser(null)
   }
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        isAuthenticated: user !== null,
-        login,
-        register,
-        logout,
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, isAuthenticated: user !== null, login, register, continueAsGuest, logout }}>
       {children}
     </AuthContext.Provider>
   )
@@ -91,10 +59,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-
+  if (!context) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
