@@ -1,5 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError } from '../services/api'
@@ -8,6 +9,7 @@ import ThemeToggle from '../components/theme/ThemeToggle'
 export default function Register() {
   const { register, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const reduceMotion = useReducedMotion()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -59,7 +61,7 @@ export default function Register() {
           AtlasGPT<span className="text-[#D83995]">.</span>
         </Link><ThemeToggle /></div>
 
-        <section className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
+        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.35 }} className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
           <div className="text-center">
             <h1 className="font-heading text-2xl font-bold text-atlas-navy">
               Create your account
@@ -159,7 +161,7 @@ export default function Register() {
               Sign in
             </Link>
           </p>
-        </section>
+        </motion.section>
 
         <p className="mt-6 text-center text-xs text-atlas-slate">
           Knowledge, beautifully connected.
