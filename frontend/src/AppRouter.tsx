@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuth } from './contexts/AuthContext'
+import { motion, useReducedMotion } from 'framer-motion'
+import { useAuth } from './hooks/useAuth'
 import App from './App'
 import Login from './pages/Login'
 import Register from './pages/Register'
