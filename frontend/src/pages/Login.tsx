@@ -1,6 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
-import { motion, useReducedMotion } from 'framer-motion'
+import { ArrowRight } from 'lucide-react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError } from '../services/api'
@@ -9,7 +9,6 @@ import ThemeToggle from '../components/theme/ThemeToggle'
 export default function Login() {
   const { login, continueAsGuest, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const reduceMotion = useReducedMotion()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -49,103 +48,10 @@ export default function Login() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-atlas-pearl px-6 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-between"><Link
-          to="/"
-          className="font-heading text-2xl font-bold text-atlas-navy"
-        >
-          AtlasGPT<span className="text-[#D83995]">.</span>
-        </Link><ThemeToggle /></div>
-
-        <motion.section initial={reduceMotion ? false : { opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: reduceMotion ? 0 : 0.35 }} className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
-          <div className="text-center">
-            <h1 className="font-heading text-2xl font-bold text-atlas-navy">
-              Welcome back
-            </h1>
-
-            <p className="mt-3 text-sm leading-6 text-atlas-slate">
-              Sign in to continue exploring your knowledge.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block text-sm font-semibold text-atlas-navy"
-              >
-                Email address
-              </label>
-
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                autoComplete="email"
-                required
-                className="w-full rounded-xl border border-atlas-mist px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan focus:ring-2 focus:ring-atlas-cyan/10"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-2 block text-sm font-semibold text-atlas-navy"
-              >
-                Password
-              </label>
-
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                required
-                className="w-full rounded-xl border border-atlas-mist px-4 py-3 text-sm outline-none transition focus:border-atlas-cyan focus:ring-2 focus:ring-atlas-cyan/10"
-              />
-            </div>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-atlas-cyan px-5 py-3.5 font-semibold text-white transition hover:bg-atlas-deep-cyan disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          <div className="my-6 flex items-center gap-3 text-xs text-atlas-slate"><span className="h-px flex-1 bg-atlas-mist" />or continue without an account<span className="h-px flex-1 bg-atlas-mist" /></div>
-          <button type="button" onClick={handleGuest} disabled={guestLoading || loading} className="w-full rounded-xl border border-atlas-mist px-5 py-3.5 text-sm font-semibold text-atlas-navy transition hover:border-atlas-cyan hover:bg-atlas-cloud disabled:opacity-50">{guestLoading ? "Starting guest session…" : "Continue as guest"}</button>
-
-          <p className="mt-7 text-center text-sm text-atlas-slate">
-            Don't have an account?{' '}
-            <Link
-              to="/register"
-              className="font-semibold text-atlas-deep-cyan hover:underline"
-            >
-              Create account
-            </Link>
-          </p>
-        </motion.section>
-
-        <p className="mt-6 text-center text-xs text-atlas-slate">
-          Knowledge, beautifully connected.
-        </p>
-      </div>
+    <main className="flex min-h-screen items-c  return (
+    <main className="atlas-auth">
+      <section className="atlas-auth__visual"><a href="/" className="atlas-auth__brand">ATLAS<span>GPT.</span></a><div className="atlas-auth__statement"><span>YOUR KNOWLEDGE, MAPPED</span><h1>Bring your<br/>thinking into<br/><em>focus.</em></h1><p>A quieter workspace for your documents, your questions and the ideas that connect them.</p></div><div className="atlas-auth__coordinates">ATLASGPT / PRIVATE KNOWLEDGE WORKSPACE</div></section>
+      <section className="atlas-auth__form-side"><div className="atlas-auth__top"><a href="/" className="atlas-auth__mobile-brand">ATLAS<span style={{color:'#D83995'}}>GPT.</span></a><ThemeToggle/></div><div className="atlas-auth__card"><span className="atlas-overline">WELCOME BACK / 01</span><h2>Good to have you back.</h2><p>Sign in to return to your sources and continue where your thinking left off.</p><form onSubmit={handleSubmit}><label>Email address<input type="email" value={email} onChange={event=>setEmail(event.target.value)} placeholder="you@example.com" autoComplete="email" required/></label><label>Password<input type="password" value={password} onChange={event=>setPassword(event.target.value)} placeholder="Your password" autoComplete="current-password" required/></label>{error&&<div className="atlas-auth__error" role="alert">{error}</div>}<button className="atlas-auth__submit" type="submit" disabled={loading}>{loading?'Signing in…':'Sign in to AtlasGPT'} <ArrowRight size={15}/></button></form><div className="atlas-auth__divider">OR</div><button className="atlas-auth__guest" type="button" onClick={handleGuest} disabled={guestLoading||loading}>{guestLoading?'Preparing your guest space…':'Continue as a guest'}</button><p className="atlas-auth__switch">New to AtlasGPT? <Link to="/register">Create an account</Link></p></div><div className="atlas-auth__foot">YOUR SOURCES REMAIN YOURS. YOUR QUESTIONS LEAD THE WAY.</div></section>
     </main>
   )
 }
