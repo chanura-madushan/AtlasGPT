@@ -21,6 +21,7 @@ import {
 
 import type { Conversation } from '../types'
 import ChatPanel from '../components/chat/ChatPanel'
+import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Dashboard() {
   const { logout } = useAuth()
@@ -208,17 +209,13 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Upload document.
-  async function handleFileUpload(
-    event: ChangeEvent<HTMLInputElement>,
-  ) {
+  // Queue ingestion and display the real worker state instead of fake progress.
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
-
     if (!file) return
 
     setUploadError('')
     setUploadSuccess('')
-
     const allowedExtensions = ['pdf', 'txt', 'docx']
     const extension = file.name.split('.').pop()?.toLowerCase()
 
@@ -227,7 +224,6 @@ export default function Dashboard() {
       event.target.value = ''
       return
     }
-
     if (file.size > 10 * 1024 * 1024) {
       setUploadError('File size must not exceed 10 MB.')
       event.target.value = ''
@@ -235,27 +231,40 @@ export default function Dashboard() {
     }
 
     setUploading(true)
-
+    setUploadSuccess('Sending document to the processing queue…')
     try {
-      const response = await documentApi.upload(file)
+      const accepted = await documentApi.uploadAsync(file)
+      setUploadSuccess(`${accepted.filename} accepted · waiting for processing`)
 
-      setUploadSuccess(`${response.filename} uploaded successfully.`)
+      let completed = false
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000))
+        const result = await documentApi.job(accepted.job_id)
+        const job = result.job
 
-      try {
-        const updatedDocuments = await documentApi.list()
-        setDocuments(updatedDocuments.documents)
-        setDocumentsError('')
-      } catch {
-        setDocumentsError(
-          'Upload succeeded, but the document list could not be refreshed. Reload the page to update it.',
-        )
+        if (job.status === 'queued') {
+          setUploadSuccess(`${job.filename} · queued for processing`)
+        } else if (job.status === 'processing') {
+          setUploadSuccess(`${job.filename} · processing document`)
+        } else if (job.status === 'failed') {
+          throw new Error(job.error || 'Document processing failed.')
+        } else if (job.status === 'completed') {
+          setUploadSuccess(`${job.filename} processed successfully · ${job.chunks} chunks indexed`)
+          completed = true
+          break
+        }
       }
+
+      if (!completed) {
+        setUploadSuccess(`${accepted.filename} is still processing. You can continue using AtlasGPT; refresh the document list shortly.`)
+      }
+      const updatedDocuments = await documentApi.list()
+      setDocuments(updatedDocuments.documents)
+      setDocumentsError('')
     } catch (error) {
-      setUploadError(
-        error instanceof ApiError
-          ? error.message
-          : 'Document upload failed. Please try again.',
-      )
+      setUploadError(error instanceof ApiError || error instanceof Error
+        ? error.message
+        : 'Document upload failed. Please try again.')
     } finally {
       setUploading(false)
       event.target.value = ''
