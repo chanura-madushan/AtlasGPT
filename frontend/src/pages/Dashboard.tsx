@@ -1,18 +1,17 @@
 
 import { useEffect, useState, type ChangeEvent } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import {
   FileText,
   MessageSquare,
   Plus,
-  Settings,
   LogOut,
   Menu,
-  X,
-  Sparkles,
   Trash2,
+  ShieldCheck,
 } from 'lucide-react'
 
-import { useAuth } from '../contexts/AuthContext'
+import { useAuth } from '../hooks/useAuth'
 import {
   ApiError,
   documentApi,
@@ -21,9 +20,11 @@ import {
 
 import type { Conversation } from '../types'
 import ChatPanel from '../components/chat/ChatPanel'
+import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Dashboard() {
   const { logout } = useAuth()
+  const reduceMotion = useReducedMotion()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -208,17 +209,13 @@ export default function Dashboard() {
     }
   }, [])
 
-  // Upload document.
-  async function handleFileUpload(
-    event: ChangeEvent<HTMLInputElement>,
-  ) {
+  // Queue ingestion and display the real worker state instead of fake progress.
+  async function handleFileUpload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
-
     if (!file) return
 
     setUploadError('')
     setUploadSuccess('')
-
     const allowedExtensions = ['pdf', 'txt', 'docx']
     const extension = file.name.split('.').pop()?.toLowerCase()
 
@@ -227,7 +224,6 @@ export default function Dashboard() {
       event.target.value = ''
       return
     }
-
     if (file.size > 10 * 1024 * 1024) {
       setUploadError('File size must not exceed 10 MB.')
       event.target.value = ''
@@ -235,27 +231,40 @@ export default function Dashboard() {
     }
 
     setUploading(true)
-
+    setUploadSuccess('Sending document to the processing queue…')
     try {
-      const response = await documentApi.upload(file)
+      const accepted = await documentApi.uploadAsync(file)
+      setUploadSuccess(`${accepted.filename} accepted · waiting for processing`)
 
-      setUploadSuccess(`${response.filename} uploaded successfully.`)
+      let completed = false
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000))
+        const result = await documentApi.job(accepted.job_id)
+        const job = result.job
 
-      try {
-        const updatedDocuments = await documentApi.list()
-        setDocuments(updatedDocuments.documents)
-        setDocumentsError('')
-      } catch {
-        setDocumentsError(
-          'Upload succeeded, but the document list could not be refreshed. Reload the page to update it.',
-        )
+        if (job.status === 'queued') {
+          setUploadSuccess(`${job.filename} · queued for processing`)
+        } else if (job.status === 'processing') {
+          setUploadSuccess(`${job.filename} · processing document`)
+        } else if (job.status === 'failed') {
+          throw new Error(job.error || 'Document processing failed.')
+        } else if (job.status === 'completed') {
+          setUploadSuccess(`${job.filename} processed successfully · ${job.chunks} chunks indexed`)
+          completed = true
+          break
+        }
       }
+
+      if (!completed) {
+        setUploadSuccess(`${accepted.filename} is still processing. You can continue using AtlasGPT; refresh the document list shortly.`)
+      }
+      const updatedDocuments = await documentApi.list()
+      setDocuments(updatedDocuments.documents)
+      setDocumentsError('')
     } catch (error) {
-      setUploadError(
-        error instanceof ApiError
-          ? error.message
-          : 'Document upload failed. Please try again.',
-      )
+      setUploadError(error instanceof ApiError || error instanceof Error
+        ? error.message
+        : 'Document upload failed. Please try again.')
     } finally {
       setUploading(false)
       event.target.value = ''
@@ -305,429 +314,43 @@ export default function Dashboard() {
   }
 
   return (
-    <main className="flex min-h-screen bg-atlas-cloud text-atlas-navy">
-
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <button
-          aria-label="Close sidebar"
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-30 bg-atlas-navy/40 backdrop-blur-sm lg:hidden"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-atlas-mist bg-white transition-transform duration-300 lg:static lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-atlas-mist px-6">
-          <a
-            href="/"
-            className="font-heading text-2xl font-bold tracking-tight"
-          >
-            AtlasGPT<span className="text-atlas-cyan">.</span>
-          </a>
-
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="rounded-lg p-2 text-atlas-slate hover:bg-atlas-cloud lg:hidden"
-            aria-label="Close sidebar"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="p-5">
-          <button
-            onClick={handleNewConversation}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-atlas-cyan px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-atlas-deep-cyan"
-          >
-            <Plus size={18} />
-            New conversation
-          </button>
-        </div>
-
-        <nav className="flex-1 space-y-3 overflow-y-auto px-4">
-          <div className="flex items-center gap-3 rounded-xl bg-atlas-cyan/10 px-4 py-3 text-sm font-semibold text-atlas-deep-cyan">
-            <MessageSquare size={18} />
-            Conversations
-          </div>
-
-          <div className="space-y-1 pt-2">
-            <p className="px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-atlas-slate">
-              Recent conversations
-            </p>
-
-            {conversationsLoading ? (
-              <p className="px-3 py-2 text-xs text-atlas-slate">
-                Loading conversations...
-              </p>
-            ) : conversationsError ? (
-              <p className="px-3 py-2 text-xs text-red-600">
-                {conversationsError}
-              </p>
-            ) : conversations.length === 0 ? (
-              <p className="px-3 py-2 text-xs leading-5 text-atlas-slate">
-                Your conversations will appear here.
-              </p>
-            ) : (
-              conversations.map((conversation) => (
-                <div
-                  key={conversation.conversation_id}
-                  className={`group flex items-center gap-1 rounded-lg transition ${
-                    selectedConversationId === conversation.conversation_id
-                      ? 'bg-atlas-cloud'
-                      : 'hover:bg-atlas-cloud'
-                  }`}
-                >
-                  <button
-                    onClick={() =>
-                      handleSelectConversation(conversation.conversation_id)
-                    }
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-3 text-left text-sm ${
-                      selectedConversationId === conversation.conversation_id
-                        ? 'font-semibold text-atlas-deep-cyan'
-                        : 'text-atlas-slate'
-                    }`}
-                  >
-                    <MessageSquare size={15} className="shrink-0" />
-                    <span className="truncate">
-                      {conversation.title || 'Untitled conversation'}
-                    </span>
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      handleDeleteConversation(conversation.conversation_id)
-                    }
-                    disabled={Boolean(deletingConversation)}
-                    title="Delete conversation"
-                    aria-label={`Delete ${conversation.title || 'conversation'}`}
-                    className="mr-2 rounded-lg p-2 text-atlas-slate opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="border-t border-atlas-mist pt-3">
-            <button
-              onClick={() =>
-                document.getElementById('documents')?.scrollIntoView({
-                  behavior: 'smooth',
-                })
-              }
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-atlas-slate transition hover:bg-atlas-cloud"
-            >
-              <FileText size={18} />
-              My documents
-            </button>
-          </div>
+    <motion.main initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} className="atlas-workspace">
+      {sidebarOpen && <button aria-label="Close navigation" className="atlas-mobile-scrim" onClick={() => setSidebarOpen(false)} />}
+      <aside className={`atlas-sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+        <a href="/" className="atlas-brand"><span className="atlas-brand__symbol">A</span><span>ATLAS<span>GPT</span><i>.</i></span></a>
+        <div className="atlas-sidebar__section-label">YOUR SPACE</div>
+        <button className="atlas-new-chat" onClick={handleNewConversation}><Plus size={17}/> New conversation</button>
+        <div className="atlas-sidebar__section-label atlas-sidebar__section-label--spaced">RECENT THREADS</div>
+        <nav className="atlas-thread-list" aria-label="Recent conversations">
+          {conversationsLoading ? <p className="atlas-sidebar-empty">Loading threads…</p> : conversationsError ? <p className="atlas-sidebar-empty">{conversationsError}</p> : conversations.length === 0 ? <p className="atlas-sidebar-empty">Your conversations will appear here.</p> : conversations.map((conversation) => (
+            <div className={`atlas-thread ${selectedConversationId === conversation.conversation_id ? 'is-active' : ''}`} key={conversation.conversation_id}>
+              <button onClick={() => handleSelectConversation(conversation.conversation_id)}><MessageSquare size={15}/><span>{conversation.title || 'Untitled conversation'}</span></button>
+              <button className="atlas-thread__delete" onClick={() => handleDeleteConversation(conversation.conversation_id)} disabled={Boolean(deletingConversation)} aria-label={`Delete ${conversation.title || 'conversation'}`}><Trash2 size={14}/></button>
+            </div>
+          ))}
         </nav>
-
-        {/* Account */}
-        <div className="border-t border-atlas-mist p-4">
-          <div className="mb-3 flex items-center gap-3 rounded-xl bg-atlas-cloud p-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-atlas-cyan/15 font-heading text-lg font-bold text-atlas-deep-cyan">
-              A
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">
-                AtlasGPT Account
-              </p>
-              <p className="text-xs text-atlas-slate">
-                Personal workspace
-              </p>
-            </div>
-          </div>
-
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-atlas-slate transition hover:bg-atlas-cloud">
-            <Settings size={18} />
-            Settings
-          </button>
-
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-red-600 transition hover:bg-red-50 disabled:opacity-50"
-          >
-            <LogOut size={18} />
-            {loggingOut ? 'Signing out...' : 'Sign out'}
-          </button>
-        </div>
+        <button className="atlas-sidebar__documents" onClick={() => document.getElementById('documents')?.scrollIntoView({behavior:'smooth'})}><FileText size={16}/> Document library <span>{documents.length}</span></button>
+        <div className="atlas-sidebar__bottom"><div className="atlas-account-mark">A</div><div className="atlas-account-copy"><b>Personal workspace</b><span>Private session</span></div><button onClick={handleLogout} disabled={loggingOut} aria-label="Sign out" className="atlas-logout"><LogOut size={17}/></button></div>
       </aside>
-
-      {/* Main workspace */}
-      <section className="flex min-h-screen min-w-0 flex-1 flex-col">
-
-        {/* Top bar */}
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-atlas-mist bg-white px-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="rounded-lg p-2 text-atlas-slate transition hover:bg-atlas-cloud lg:hidden"
-              aria-label="Open sidebar"
-            >
-              <Menu size={21} />
-            </button>
-
-            <div>
-              <h1 className="font-heading text-base font-bold sm:text-lg">
-                Knowledge workspace
-              </h1>
-              <p className="hidden text-xs text-atlas-slate sm:block">
-                Your documents. Your knowledge. One workspace.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-full border border-atlas-mist bg-atlas-pearl px-3 py-2 text-xs font-medium text-atlas-deep-cyan">
-            Personal workspace
-          </div>
-        </header>
-
-        {/* Workspace layout */}
-        <div className="flex-1 p-3 sm:p-5">
-          <div className="mx-auto grid w-full max-w-[1800px] grid-cols-1 gap-4 xl:h-[calc(100vh-104px)] xl:grid-cols-[minmax(0,1fr)_270px]">
-
-            {/* Main chat column */}
-            <section className="flex min-h-[650px] min-w-0 flex-col">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Sparkles
-                      size={18}
-                      className="text-atlas-cyan"
-                    />
-                    <h2 className="font-heading text-lg font-bold">
-                      AI Assistant
-                    </h2>
-                  </div>
-
-                  <p className="mt-1 text-xs text-atlas-slate sm:text-sm">
-                    Ask questions about your uploaded documents.
-                  </p>
-                </div>
-
-                <span className="hidden rounded-full bg-white px-3 py-1.5 text-xs font-medium text-atlas-slate sm:inline-flex">
-                  Private workspace
-                </span>
-              </div>
-
-              {!conversationsLoading && selectedConversationId ? (
-                <div className="min-h-[580px] flex-1 xl:min-h-0">
-                  <ChatPanel
-                    key={selectedConversationId}
-                    conversationId={selectedConversationId}
-                    onConversationUpdated={handleConversationUpdated}
-                  />
-                </div>
-              ) : (
-                <div className="flex min-h-[580px] flex-1 items-center justify-center rounded-2xl border border-atlas-mist bg-white">
-                  <div className="text-center">
-                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-cyan">
-                      <MessageSquare size={23} />
-                    </div>
-                    <p className="mt-4 text-sm font-semibold">
-                      Loading your workspace
-                    </p>
-                    <p className="mt-1 text-xs text-atlas-slate">
-                      Preparing your conversations...
-                    </p>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* Documents panel */}
-            <aside
-              id="documents"
-              className="flex min-w-0 flex-col rounded-2xl border border-atlas-mist bg-white p-4 sm:p-5 xl:min-h-0 xl:overflow-y-auto"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <FileText
-                      size={18}
-                      className="text-atlas-cyan"
-                    />
-                    <h3 className="font-heading text-base font-bold">
-                      Documents
-                    </h3>
-                  </div>
-
-                  <p className="mt-1 text-xs text-atlas-slate">
-                    Your knowledge sources
-                  </p>
-                </div>
-
-                <span className="rounded-lg bg-atlas-cloud px-2.5 py-1 text-xs font-semibold text-atlas-deep-cyan">
-                  {documents.length}
-                </span>
-              </div>
-
-              {/* Upload area */}
-              <div className="mt-5 rounded-xl border border-dashed border-atlas-mist bg-atlas-pearl p-4">
-                <div className="text-center">
-                  <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-atlas-cyan/10 text-atlas-cyan">
-                    <Plus size={21} />
-                  </div>
-
-                  <p className="mt-3 text-sm font-semibold">
-                    Add a document
-                  </p>
-
-                  <p className="mt-1 text-xs leading-5 text-atlas-slate">
-                    Upload a file to expand your knowledge base.
-                  </p>
-
-                  <label
-                    htmlFor="document-upload"
-                    className={`mt-4 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-atlas-cyan px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-atlas-deep-cyan ${
-                      uploading ? 'cursor-not-allowed opacity-50' : ''
-                    }`}
-                  >
-                    <Plus size={16} />
-                    {uploading ? 'Uploading...' : 'Upload file'}
-                  </label>
-
-                  <input
-                    id="document-upload"
-                    type="file"
-                    accept=".pdf,.txt,.docx"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                    className="hidden"
-                  />
-
-                  <p className="mt-2 text-[11px] text-atlas-slate">
-                    PDF, TXT, DOCX · Max 10 MB
-                  </p>
-                </div>
-              </div>
-
-              {/* Upload and deletion feedback */}
-              {uploadError && (
-                <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-600">
-                  {uploadError}
-                </p>
-              )}
-
-              {uploadSuccess && (
-                <p className="mt-3 rounded-lg bg-green-50 p-3 text-xs leading-5 text-green-700">
-                  {uploadSuccess}
-                </p>
-              )}
-
-              {deleteError && (
-                <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs leading-5 text-red-600">
-                  {deleteError}
-                </p>
-              )}
-
-              {deleteSuccess && (
-                <p className="mt-3 rounded-lg bg-green-50 p-3 text-xs leading-5 text-green-700">
-                  {deleteSuccess}
-                </p>
-              )}
-
-              <div className="my-5 border-t border-atlas-mist" />
-
-              {/* Document list */}
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-atlas-slate">
-                  Uploaded files
-                </h4>
-
-                <span className="text-[11px] text-atlas-slate">
-                  {documents.length} total
-                </span>
-              </div>
-
-              {documentsLoading ? (
-                <p className="mt-4 text-xs text-atlas-slate">
-                  Loading documents...
-                </p>
-              ) : documentsError ? (
-                <p className="mt-4 text-xs text-red-600">
-                  {documentsError}
-                </p>
-              ) : documents.length === 0 ? (
-                <div className="py-8 text-center">
-                  <FileText
-                    size={26}
-                    className="mx-auto text-atlas-mist"
-                  />
-                  <p className="mt-3 text-xs font-medium text-atlas-slate">
-                    No documents yet
-                  </p>
-                  <p className="mt-1 text-[11px] leading-5 text-atlas-slate">
-                    Your uploaded files will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-2 divide-y divide-atlas-mist">
-                  {documents.map((document) => (
-                    <div
-                      key={document.source}
-                      className="flex items-start gap-2 py-3"
-                    >
-                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-atlas-cyan/10 text-atlas-cyan">
-                        <FileText size={16} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className="break-words text-xs font-semibold leading-5 text-atlas-navy"
-                          title={document.source}
-                        >
-                          {document.source}
-                        </p>
-
-                        <p className="mt-1 text-[11px] text-atlas-slate">
-                          {document.chunks} chunks
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          handleDeleteDocument(document.source)
-                        }
-                        disabled={Boolean(deletingDocument)}
-                        title={`Delete ${document.source}`}
-                        aria-label={`Delete ${document.source}`}
-                        className="shrink-0 rounded-lg p-2 text-atlas-slate transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {deletingDocument === document.source ? (
-                          <span className="text-[10px]">...</span>
-                        ) : (
-                          <Trash2 size={15} />
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-auto pt-5">
-                <div className="rounded-xl bg-atlas-cloud p-3">
-                  <p className="text-xs font-semibold text-atlas-navy">
-                    Knowledge workspace
-                  </p>
-                  <p className="mt-1 text-[11px] leading-5 text-atlas-slate">
-                    Your conversations use your uploaded sources to provide grounded answers.
-                  </p>
-                </div>
-              </div>
+      <section className="atlas-workspace__main">
+        <header className="atlas-workspace__topbar"><div className="atlas-topbar-title"><button className="atlas-mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={20}/></button><div><span className="atlas-overline">ATLASGPT / KNOWLEDGE SPACE</span><h1>Your workspace</h1></div></div><div className="atlas-topbar-actions"><span className="atlas-session-status"><i/> SESSION ACTIVE</span><ThemeToggle/></div></header>
+        <div className="atlas-workspace__content">
+          <div className="atlas-workspace__heading"><div><span className="atlas-overline">THE CONVERSATION DESK</span><h2>Explore your material.</h2><p>Ask questions. Follow the evidence. Build understanding.</p></div><div className="atlas-workspace__heading-index">FIELD NOTE <b>01 / 01</b></div></div>
+          <div className="atlas-workspace__grid">
+            <section className="atlas-chat-column">{!conversationsLoading && selectedConversationId ? <ChatPanel key={selectedConversationId} conversationId={selectedConversationId} onConversationUpdated={handleConversationUpdated}/> : <div className="atlas-chat-loading">Preparing your workspace…</div>}</section>
+            <aside className="atlas-library" id="documents">
+              <div className="atlas-library__head"><div><span className="atlas-overline">SOURCE INDEX</span><h3>Your documents</h3></div><span className="atlas-library__count">{documents.length.toString().padStart(2,'0')}</span></div>
+              <p className="atlas-library__intro">The material behind your conversations.</p>
+              <label htmlFor="document-upload" className={`atlas-dropzone ${uploading ? 'is-uploading' : ''}`}><span className="atlas-dropzone__icon"><Plus size={21}/></span><b>{uploading ? 'Processing request' : 'Add to your atlas'}</b><span>Drop a file here or browse to select</span><small>PDF · DOCX · TXT / UP TO 10 MB</small><input id="document-upload" type="file" accept=".pdf,.txt,.docx" onChange={handleFileUpload} disabled={uploading}/></label>
+              {uploadError && <p className="atlas-feedback is-error" role="alert">{uploadError}</p>}{uploadSuccess && <p className="atlas-feedback is-success" role="status">{uploadSuccess}</p>}{deleteError && <p className="atlas-feedback is-error" role="alert">{deleteError}</p>}{deleteSuccess && <p className="atlas-feedback is-success" role="status">{deleteSuccess}</p>}
+              <div className="atlas-library__divider"><span>INDEXED SOURCES</span><span>{documents.length} FILES</span></div>
+              <div className="atlas-source-list">{documentsLoading ? <p className="atlas-library__empty">Reading your source index…</p> : documentsError ? <p className="atlas-library__empty">{documentsError}</p> : documents.length === 0 ? <div className="atlas-library__empty-state"><FileText size={25}/><b>No sources yet</b><span>Your uploaded documents will be listed here.</span></div> : documents.map((doc,index) => <article className="atlas-source" key={doc.source}><span className="atlas-source__index">{String(index+1).padStart(2,'0')}</span><div className="atlas-source__info"><b title={doc.source}>{doc.source}</b><span>{doc.chunks} indexed segments</span></div><button onClick={() => handleDeleteDocument(doc.source)} disabled={Boolean(deletingDocument)} aria-label={`Delete ${doc.source}`} title="Remove source">{deletingDocument === doc.source ? '…' : <Trash2 size={15}/>}</button></article>)}</div>
+              <div className="atlas-library__note"><ShieldCheck size={15}/><span>Answers are informed by the documents in this workspace. Verify important details against your original sources.</span></div>
             </aside>
           </div>
         </div>
+        <footer className="atlas-workspace__footer"><span>ATLASGPT / KNOWLEDGE, BEAUTIFULLY CONNECTED.</span><span>YOUR SOURCES. YOUR CONTEXT.</span></footer>
       </section>
-    </main>
+    </motion.main>
   )
 }
