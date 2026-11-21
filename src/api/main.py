@@ -58,7 +58,27 @@ RATE_LIMITS = {
     "credential": 5,
 }
 
-COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+ENVIRONMENT = os.getenv("ATLASGPT_ENV", "development").strip().lower()
+COOKIE_SECURE = os.getenv(
+    "COOKIE_SECURE",
+    "true" if ENVIRONMENT == "production" else "false",
+).strip().lower() == "true"
+
+# Comma-separated origins support local development and deployed frontends.
+_configured_origins = os.getenv(
+    "FRONTEND_ORIGINS",
+    os.getenv("FRONTEND_ORIGIN", "http://localhost:5173"),
+)
+FRONTEND_ORIGINS = {
+    origin.strip().rstrip("/")
+    for origin in _configured_origins.split(",")
+    if origin.strip()
+}
+if not FRONTEND_ORIGINS:
+    raise RuntimeError("At least one FRONTEND_ORIGINS entry is required.")
+
+# Backwards-compatible single-origin value for existing integrations.
+FRONTEND_ORIGIN = sorted(FRONTEND_ORIGINS)[0]
 
 user_requests = defaultdict(deque)
 rate_limit_lock = Lock()
@@ -68,8 +88,6 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
-
-FRONTEND_ORIGIN = "http://localhost:5173"
 
 security = HTTPBearer(auto_error=False)
 
@@ -81,7 +99,7 @@ security = HTTPBearer(auto_error=False)
 def require_trusted_origin(request: Request) -> None:
     origin = request.headers.get("origin")
 
-    if origin != FRONTEND_ORIGIN:
+    if origin is None or origin.rstrip("/") not in FRONTEND_ORIGINS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Untrusted request origin",
@@ -217,7 +235,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_ORIGIN],
+    allow_origins=sorted(FRONTEND_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
