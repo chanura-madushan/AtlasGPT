@@ -27,7 +27,10 @@ def test_guest_session_is_created_and_has_guest_entitlements(tmp_path, monkeypat
         assert current_user.status_code == 200
         assert current_user.json()["plan"] == "guest"
 
-        usage = client.get("/account/usage")
+        usage = client.get(
+            "/account/usage",
+            headers={"Origin": "http://localhost:5173"},
+        )
         assert usage.status_code == 200
         assert usage.json()["plan"] == "guest"
         assert usage.json()["chat"]["limit"] == 3
