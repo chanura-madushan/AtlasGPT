@@ -1,4 +1,5 @@
 import { ArrowRight, Menu, X } from "lucide-react";
+import ThemeToggle from "../theme/ThemeToggle";
 import { useState } from "react";
 
 function Navbar() {
