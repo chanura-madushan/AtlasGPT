@@ -56,6 +56,7 @@ RATE_LIMITS = {
     "delete": 10,
     "read": 60,
     "credential": 5,
+    "auth": 10,
 }
 
 ENVIRONMENT = os.getenv("ATLASGPT_ENV", "development").strip().lower()
@@ -111,7 +112,7 @@ def require_trusted_origin(request: Request) -> None:
 # --------------------------------------------------
 
 def check_rate_limit(
-    user_id: int,
+    user_id: int | str,
     category: str,
 ) -> None:
     if category not in RATE_LIMITS:
@@ -312,7 +313,10 @@ def home():
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_trusted_origin)],
 )
-def register(request: RegisterRequest):
+def register(request: RegisterRequest, http_request: Request):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
     try:
         create_web_account(
             email=request.email,
@@ -338,7 +342,10 @@ def register(request: RegisterRequest):
     "/auth/login",
     dependencies=[Depends(require_trusted_origin)],
 )
-def login(request: LoginRequest, response: Response):
+def login(request: LoginRequest, response: Response, http_request: Request):
+    client_ip = http_request.client.host if http_request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
     user_id = authenticate_web_account(
         email=request.email,
         password=request.password,
