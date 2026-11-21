@@ -25,6 +25,11 @@ from pydantic import BaseModel, Field, field_validator
 from src.llm.conversation_engine import process_message
 from src.rag.ingest import ingest_document
 from src.rag.vector_store import list_documents, delete_document
+from src.database.job_db import (
+    init_job_db,
+    create_ingestion_job,
+    get_ingestion_job,
+)
 
 from src.database.conversation_db import (
     init_db,
@@ -219,6 +224,7 @@ def rate_limited_api_key(category: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    init_job_db()
     yield
 
 
@@ -590,6 +596,84 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Document upload or processing failed",
         ) from error
+
+
+# --------------------------------------------------
+# Asynchronous Document Ingestion
+# --------------------------------------------------
+
+@app.post("/documents/upload-async", status_code=status.HTTP_202_ACCEPTED)
+async def upload_document_async(
+    file: UploadFile = File(...),
+    user_id: int = Depends(rate_limited_user("upload")),
+):
+    """Save an upload and queue indexing for the separate worker process."""
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No filename provided",
+        )
+
+    filename = Path(file.filename.replace("\\\\", "/")).name
+    if Path(filename).suffix.lower() not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF, TXT, and DOCX files are allowed",
+        )
+
+    user_upload_dir = UPLOAD_DIR / str(user_id)
+    user_upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = user_upload_dir / filename
+
+    if file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A document with this filename already exists",
+        )
+
+    content = await file.read(MAX_FILE_SIZE + 1)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty",
+        )
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="File size must not exceed 10 MB",
+        )
+
+    try:
+        file_path.write_bytes(content)
+        job = create_ingestion_job(user_id, filename, str(file_path))
+    except Exception as error:
+        file_path.unlink(missing_ok=True)
+        logger.exception("Could not queue document ingestion")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not queue document processing",
+        ) from error
+
+    return {
+        "message": "Document accepted for processing",
+        "job_id": job["id"],
+        "filename": filename,
+        "status": job["status"],
+    }
+
+
+@app.get("/documents/jobs/{job_id}")
+def get_document_job(
+    job_id: str,
+    user_id: int = Depends(rate_limited_user("read")),
+):
+    job = get_ingestion_job(job_id, user_id)
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ingestion job not found",
+        )
+    return {"job": job}
 
 
 # --------------------------------------------------
