@@ -80,7 +80,16 @@ def claim_ingestion_job(lease_seconds: int = 900) -> dict | None:
         connection.execute("BEGIN IMMEDIATE")
         connection.execute("""
             UPDATE ingestion_jobs
-            SET status = 'queued', claimed_at = NULL, updated_at = ?
+            SET status = CASE
+                    WHEN attempts < 3 THEN 'queued'
+                    ELSE 'failed'
+                END,
+                error = CASE
+                    WHEN attempts < 3 THEN 'Worker lease expired; job requeued.'
+                    ELSE 'Worker lease expired too many times.'
+                END,
+                claimed_at = NULL,
+                updated_at = ?
             WHERE status = 'processing' AND claimed_at < ?
         """, (now.isoformat(), stale_before))
         row = connection.execute("""
