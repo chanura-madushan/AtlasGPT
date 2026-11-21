@@ -30,6 +30,12 @@ from src.database.job_db import (
     create_ingestion_job,
     get_ingestion_job,
 )
+from src.database.usage_db import (
+    init_usage_db,
+    consume_usage,
+    get_usage_summary,
+    UsageLimitExceeded,
+)
 
 from src.database.conversation_db import (
     init_db,
@@ -225,6 +231,7 @@ def rate_limited_api_key(category: str):
 async def lifespan(app: FastAPI):
     init_db()
     init_job_db()
+    init_usage_db()
     yield
 
 
@@ -444,6 +451,14 @@ def chat(
     request: ChatRequest,
     user_id: int = Depends(rate_limited_user("chat")),
 ):
+    try:
+        consume_usage(user_id, "chat")
+    except UsageLimitExceeded as error:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(error),
+        ) from error
+
     answer = process_message(
         user_id=user_id,
         conversation_id=request.conversation_id,
@@ -457,6 +472,17 @@ def chat(
         )
 
     return {"reply": answer}
+
+
+# --------------------------------------------------
+# Account Usage
+# --------------------------------------------------
+
+@app.get("/account/usage")
+def account_usage(
+    user_id: int = Depends(rate_limited_user("read")),
+):
+    return get_usage_summary(user_id)
 
 
 # --------------------------------------------------
@@ -573,6 +599,14 @@ async def upload_document(
         )
 
     try:
+        try:
+            consume_usage(user_id, "upload")
+        except UsageLimitExceeded as error:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(error),
+            ) from error
+
         file_path.write_bytes(file_content)
 
         chunks = await run_in_threadpool(
@@ -644,6 +678,14 @@ async def upload_document_async(
         )
 
     try:
+        try:
+            consume_usage(user_id, "upload")
+        except UsageLimitExceeded as error:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=str(error),
+            ) from error
+
         file_path.write_bytes(content)
         job = create_ingestion_job(user_id, filename, str(file_path))
     except Exception as error:
