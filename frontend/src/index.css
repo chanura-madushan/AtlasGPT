@@ -1,6 +1,3 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 @import "tailwindcss";
 
 @theme {
@@ -12,47 +9,115 @@
   --color-atlas-mist: #E3EDF1;
   --color-atlas-slate: #607783;
   --color-atlas-deep-cyan: #006F96;
-
-  --font-heading: "Plus Jakarta Sans", sans-serif;
-  --font-body: "Inter", sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
 }
 
 :root {
   font-family: var(--font-body);
-  color: var(--color-atlas-navy);
-  background: var(--color-atlas-pearl);
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  color-scheme: light;
+  --surface: #FCFFFF;
+  --surface-raised: #FFFFFF;
+  --surface-soft: #F3F8FA;
+  --text-primary: #102B3A;
+  --text-muted: #607783;
+  --line: #E3EDF1;
+  --accent: #0593C6;
+  --accent-strong: #006F96;
+  --shadow-soft: 0 18px 60px rgba(16, 43, 58, .07);
 }
 
-* {
-  box-sizing: border-box;
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #101C25;
+  --surface-raised: #172733;
+  --surface-soft: #1C303D;
+  --text-primary: #ECF5F8;
+  --text-muted: #A1B5BF;
+  --line: #29414E;
+  --accent: #39B6DE;
+  --accent-strong: #79D5F0;
+  --shadow-soft: 0 18px 60px rgba(0, 0, 0, .22);
+  --color-atlas-pearl: #101C25;
+  --color-atlas-cloud: #172733;
+  --color-atlas-mist: #29414E;
+  --color-atlas-navy: #ECF5F8;
+  --color-atlas-slate: #A1B5BF;
+  --color-atlas-deep-cyan: #79D5F0;
 }
 
+* { box-sizing: border-box; }
+html { min-width: 320px; scroll-behavior: smooth; background: var(--surface); }
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  color: var(--text-primary);
+  background: var(--surface);
+  transition: background-color .28s ease, color .28s ease;
 }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+a { color: inherit; }
+::selection { color: white; background: #D83995; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+img { max-width: 100%; }
 
-button,
-input,
-textarea {
-  font: inherit;
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  transition: border-color .2s ease, background-color .28s ease, color .28s ease, transform .2s ease;
 }
+.theme-toggle:hover { border-color: var(--accent); transform: translateY(-1px); }
+.theme-toggle__icon { display: inline-flex; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+.theme-toggle:active .theme-toggle__icon { transform: rotate(-25deg) scale(.88); }
 
-button {
-  cursor: pointer;
+.route-enter { animation: route-enter .34s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes route-enter { from { opacity: .45; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+.app-loading {
+  display: flex; min-height: 100vh; align-items: center; justify-content: center; flex-direction: column; gap: 18px;
+  color: var(--text-muted); background: var(--surface); font-size: 13px; letter-spacing: .02em;
 }
-
-::selection {
-  color: white;
-  background: var(--color-atlas-cyan);
+.loading-mark {
+  display: grid; width: 42px; height: 42px; place-items: center; border-radius: 14px;
+  color: white; background: #D83995; font-weight: 700; box-shadow: 0 10px 28px rgba(216,57,149,.22);
+  animation: mark-breathe 1.8s ease-in-out infinite;
 }
+@keyframes mark-breathe { 50% { transform: translateY(-3px); box-shadow: 0 14px 34px rgba(216,57,149,.32); } }
 
-html {
-  scroll-behavior: smooth;
+:root[data-theme="dark"] .bg-white { background-color: var(--surface-raised) !important; }
+:root[data-theme="dark"] .bg-atlas-pearl { background-color: var(--surface) !important; }
+:root[data-theme="dark"] .bg-atlas-cloud { background-color: var(--surface-soft) !important; }
+:root[data-theme="dark"] .border-atlas-mist { border-color: var(--line) !important; }
+:root[data-theme="dark"] .text-atlas-navy { color: var(--text-primary) !important; }
+:root[data-theme="dark"] .text-atlas-slate { color: var(--text-muted) !important; }
+:root[data-theme="dark"] input, :root[data-theme="dark"] textarea {
+  color: var(--text-primary);
+  background-color: transparent;
+}
+:root[data-theme="dark"] .bg-green-50 { background-color: #18392F !important; }
+:root[data-theme="dark"] .text-green-700 { color: #8AD5B1 !important; }
+:root[data-theme="dark"] .bg-red-50 { background-color: #40252C !important; }
+:root[data-theme="dark"] .text-red-600, :root[data-theme="dark"] .text-red-700 { color: #FF9BA8 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
 }
