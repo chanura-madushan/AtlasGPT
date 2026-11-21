@@ -4,7 +4,6 @@ import {
   FileText,
   MessageSquare,
   Plus,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -454,11 +453,6 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-atlas-slate transition hover:bg-atlas-cloud">
-            <Settings size={18} />
-            Settings
-          </button>
 
           <button
             onClick={handleLogout}
