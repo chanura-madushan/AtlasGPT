@@ -171,3 +171,28 @@ def get_usage_summary(user_id: int) -> dict:
                 "period": period_name,
             }
     return result
+
+
+def get_plan_catalog() -> list[dict]:
+    """Return public plan limits for rendering the pricing/usage interface."""
+    labels = {
+        "guest": "Guest",
+        "free": "Free",
+        "paid": "AtlasGPT Plus",
+    }
+    descriptions = {
+        "guest": "Try AtlasGPT without creating an account.",
+        "free": "Study with a registered free account.",
+        "paid": "Higher fair-use limits for regular study workloads.",
+    }
+    return [
+        {
+            "id": plan,
+            "name": labels[plan],
+            "description": descriptions[plan],
+            "chat_daily_limit": limits["chat_daily"],
+            "upload_monthly_limit": limits["upload_monthly"],
+            "fair_use": plan == "paid",
+        }
+        for plan, limits in PLAN_LIMITS.items()
+    ]
