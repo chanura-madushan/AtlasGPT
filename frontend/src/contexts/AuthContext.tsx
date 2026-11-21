@@ -68,7 +68,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await login(email, password)
   }
 
-  async function logout() {
+  async function continueAsGuest() {\n    await authApi.guest()\n    const currentUser = await authApi.me()\n    setUser(currentUser)\n  }\n\n  async function logout() {
     await authApi.logout()
     setUser(null)
   }
