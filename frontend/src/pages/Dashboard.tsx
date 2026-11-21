@@ -7,8 +7,6 @@ import {
   Plus,
   LogOut,
   Menu,
-  X,
-  Sparkles,
   Trash2,
 } from 'lucide-react'
 
