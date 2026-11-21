@@ -34,6 +34,8 @@ from src.database.usage_db import (
     init_usage_db,
     consume_usage,
     get_usage_summary,
+    get_user_plan,
+    set_user_plan,
     UsageLimitExceeded,
 )
 
@@ -49,6 +51,7 @@ from src.database.conversation_db import (
     get_conversations,
     get_history,
     delete_conversation,
+    create_guest_session,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -348,6 +351,38 @@ def register(request: RegisterRequest, http_request: Request):
 
 
 # --------------------------------------------------
+# Guest Session
+# --------------------------------------------------
+
+@app.post(
+    "/auth/guest",
+    dependencies=[Depends(require_trusted_origin)],
+)
+def create_guest(response: Response, request: Request):
+    client_ip = request.client.host if request.client else "unknown"
+    check_rate_limit(f"ip:{client_ip}", "auth")
+
+    user_id, session_token = create_guest_session()
+    set_user_plan(user_id, "guest")
+
+    response.set_cookie(
+        key="atlasgpt_session",
+        value=session_token,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        max_age=2 * 60 * 60,
+        path="/",
+    )
+
+    return {
+        "message": "Guest session created",
+        "plan": "guest",
+        "expires_in_seconds": 2 * 60 * 60,
+    }
+
+
+# --------------------------------------------------
 # Login
 # --------------------------------------------------
 
@@ -412,6 +447,7 @@ def get_current_user(request: Request):
     return {
         "user_id": user_id,
         "authenticated": True,
+        "plan": get_user_plan(user_id),
     }
 
 
