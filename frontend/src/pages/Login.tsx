@@ -3,18 +3,28 @@ import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { ApiError } from '../services/api'
+import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth()
+  const { login, continueAsGuest, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [guestLoading, setGuestLoading] = useState(false)
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />
+  }
+
+  async function handleGuest() {
+    setError('')
+    setGuestLoading(true)
+    try { await continueAsGuest(); navigate('/dashboard') }
+    catch (err) { setError(err instanceof ApiError ? err.message : 'Unable to start a guest session.') }
+    finally { setGuestLoading(false) }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -39,12 +49,12 @@ export default function Login() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-atlas-pearl px-6 py-12">
       <div className="w-full max-w-md">
-        <Link
+        <div className="mb-8 flex items-center justify-between"><Link
           to="/"
-          className="mb-10 block text-center font-heading text-3xl font-bold text-atlas-navy"
+          className="font-heading text-2xl font-bold text-atlas-navy"
         >
-          AtlasGPT<span className="text-atlas-cyan">.</span>
-        </Link>
+          AtlasGPT<span className="text-[#D83995]">.</span>
+        </Link><ThemeToggle /></div>
 
         <section className="rounded-3xl border border-atlas-mist bg-white p-8 shadow-xl shadow-atlas-navy/5 sm:p-10">
           <div className="text-center">
@@ -115,6 +125,9 @@ export default function Login() {
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
           </form>
+
+          <div className="my-6 flex items-center gap-3 text-xs text-atlas-slate"><span className="h-px flex-1 bg-atlas-mist" />or continue without an account<span className="h-px flex-1 bg-atlas-mist" /></div>
+          <button type="button" onClick={handleGuest} disabled={guestLoading || loading} className="w-full rounded-xl border border-atlas-mist px-5 py-3.5 text-sm font-semibold text-atlas-navy transition hover:border-atlas-cyan hover:bg-atlas-cloud disabled:opacity-50">{guestLoading ? "Starting guest session…" : "Continue as guest"}</button>
 
           <p className="mt-7 text-center text-sm text-atlas-slate">
             Don't have an account?{' '}
