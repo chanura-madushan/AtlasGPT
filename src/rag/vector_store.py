@@ -119,16 +119,11 @@ def search_documents(
 
     where = filters[0] if len(filters) == 1 else {"$and": filters}
 
-    # ChromaDB's count() is a lightweight collection-level count.
-    # Avoid fetching every matching chunk ID just to determine n_results.
-    total = collection.count()
-
-    if total == 0:
-        return []
-
+    # Let ChromaDB apply the user/source filter directly.
+    # Fetching or counting all records before every query adds avoidable work.
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=min(n_results, total),
+        n_results=n_results,
         where=where,
     )
 
