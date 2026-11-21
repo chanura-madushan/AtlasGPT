@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator
 
 from src.llm.conversation_engine import process_message
@@ -543,7 +544,11 @@ async def upload_document(
     try:
         file_path.write_bytes(file_content)
 
-        chunks = ingest_document(str(file_path), user_id)
+        chunks = await run_in_threadpool(
+            ingest_document,
+            str(file_path),
+            user_id,
+        )
 
         return {
             "message": "Document uploaded and indexed successfully",
