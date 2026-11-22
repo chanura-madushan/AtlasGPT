@@ -13,10 +13,12 @@ app = api_main.app
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from src.database import conversation_db
+    from src.database import conversation_db, job_db
 
     test_db = tmp_path / "test_api.db"
     monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+    monkeypatch.setattr(job_db, "DATABASE_PATH", tmp_path / "test_jobs.db")
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", tmp_path / "uploads")
     api_main.user_requests.clear()
     with TestClient(app) as test_client:
         api_key = conversation_db.create_api_credential(123)
@@ -1104,3 +1106,48 @@ def test_user_cannot_delete_another_users_conversation(client):
 
     assert len(history) == 1
     assert history[0]["content"] == "Private message"
+
+
+def test_persist_upload_creates_file_without_overwriting(tmp_path):
+    upload_path = tmp_path / "notes.txt"
+
+    api_main.persist_upload(upload_path, b"original")
+    assert upload_path.read_bytes() == b"original"
+
+    with pytest.raises(api_main.HTTPException) as error:
+        api_main.persist_upload(upload_path, b"replacement")
+
+    assert error.value.status_code == 409
+    assert upload_path.read_bytes() == b"original"
+
+
+def test_rate_limiter_evicts_expired_identity_buckets(monkeypatch):
+    api_main.user_requests.clear()
+    monkeypatch.setattr(api_main, "last_rate_limit_cleanup", 0.0)
+    clock = {"now": 100.0}
+    monkeypatch.setattr(api_main.time, "monotonic", lambda: clock["now"])
+
+    api_main.check_rate_limit("ip:first", "auth")
+    assert ("ip:first", "auth") in api_main.user_requests
+
+    clock["now"] += api_main.RATE_WINDOW + 1
+    api_main.check_rate_limit("ip:second", "auth")
+
+    assert ("ip:first", "auth") not in api_main.user_requests
+    assert ("ip:second", "auth") in api_main.user_requests
+    api_main.user_requests.clear()
+
+
+def test_delete_rejects_document_while_ingestion_is_active(client, tmp_path):
+    from src.database import job_db
+
+    upload = tmp_path / "uploads" / "123" / "queued.txt"
+    upload.parent.mkdir(parents=True, exist_ok=True)
+    upload.write_text("queued content", encoding="utf-8")
+    job_db.create_ingestion_job(123, "queued.txt", str(upload))
+
+    response = client.delete("/documents/queued.txt")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Document is still being processed"
+    assert upload.exists()

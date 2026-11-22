@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 import time
 
@@ -22,6 +23,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
 
     all_embeddings = []
+    embedding_dimensions = None
     total_started = time.perf_counter()
 
     for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
@@ -60,6 +62,26 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
             raise ValueError(
                 "Ollama returned an unexpected number of embeddings."
             )
+
+        for embedding in embeddings:
+            if (
+                not isinstance(embedding, list)
+                or not embedding
+                or any(
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                    for value in embedding
+                )
+            ):
+                raise ValueError("Ollama returned an invalid embedding vector.")
+
+            if embedding_dimensions is None:
+                embedding_dimensions = len(embedding)
+            elif len(embedding) != embedding_dimensions:
+                raise ValueError(
+                    "Ollama returned embeddings with inconsistent dimensions."
+                )
 
         all_embeddings.extend(embeddings)
 

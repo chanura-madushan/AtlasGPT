@@ -72,3 +72,42 @@ def test_embed_texts_batches_large_inputs_and_preserves_order():
     assert mock_post.call_count == 2
     assert len(mock_post.call_args_list[0].kwargs["json"]["input"]) == 32
     assert len(mock_post.call_args_list[1].kwargs["json"]["input"]) == 2
+
+
+@pytest.mark.parametrize(
+    "embedding",
+    [
+        [],
+        [0.1, "not-a-number"],
+        [0.1, float("nan")],
+        [0.1, float("inf")],
+    ],
+)
+def test_embed_texts_rejects_invalid_embedding_vectors(embedding):
+    mock_response = Mock()
+    mock_response.json.return_value = {"embeddings": [embedding]}
+
+    with patch(
+        "src.rag.embeddings.requests.post",
+        return_value=mock_response,
+    ):
+        with pytest.raises(ValueError, match="invalid embedding vector"):
+            embed_texts(["Hello AtlasGPT"])
+
+
+def test_embed_texts_rejects_inconsistent_vector_dimensions():
+    first_batch = Mock()
+    first_batch.json.return_value = {
+        "embeddings": [[0.1] for _ in range(32)]
+    }
+    second_batch = Mock()
+    second_batch.json.return_value = {
+        "embeddings": [[0.2, 0.3]]
+    }
+
+    with patch(
+        "src.rag.embeddings.requests.post",
+        side_effect=[first_batch, second_batch],
+    ):
+        with pytest.raises(ValueError, match="inconsistent dimensions"):
+            embed_texts([f"text {index}" for index in range(33)])

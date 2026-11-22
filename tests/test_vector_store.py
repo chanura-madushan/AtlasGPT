@@ -197,14 +197,20 @@ def test_search_filters_multiple_sources():
 
 def test_search_returns_empty_when_user_has_no_documents(monkeypatch):
     user_id = 9401
+    query_arguments = {}
 
-    def unexpected_query(**kwargs):
-        pytest.fail("ChromaDB query should not run when no documents exist")
+    def empty_query(**kwargs):
+        query_arguments.update(kwargs)
+        return {
+            "documents": [[]],
+            "metadatas": [[]],
+            "distances": [[]],
+        }
 
     monkeypatch.setattr(
         vector_store.collection,
         "query",
-        unexpected_query,
+        empty_query,
     )
 
     results = search_documents(
@@ -213,6 +219,8 @@ def test_search_returns_empty_when_user_has_no_documents(monkeypatch):
     )
 
     assert results == []
+    assert query_arguments["where"] == {"user_id": user_id}
+    assert query_arguments["n_results"] == 3
 
 def test_replacing_document_removes_old_chunks():
     user_id = 9501

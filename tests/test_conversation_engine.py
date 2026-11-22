@@ -50,7 +50,6 @@ def test_process_message_saves_successful_exchange(
 
     mock_ask_ollama.assert_called_once_with(
     (
-        f"{SYSTEM_PROMPT}\n\n"
         "DOCUMENT CONTEXT:\n"
         "[Source: python.txt]\n"
         "Python is a popular programming language."
@@ -61,6 +60,7 @@ def test_process_message_saves_successful_exchange(
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi there"},
         ],
+        system=SYSTEM_PROMPT,
     )
 
     assert mock_save_message.call_args_list == [
