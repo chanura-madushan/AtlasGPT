@@ -3,7 +3,12 @@ import type {
   UploadResponse, User, ConversationListResponse, ConversationMessagesResponse,
 } from '../types'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '')
+// Use localhost only during development. Production builds default to the
+// current origin so a reverse proxy can serve /api and the frontend together.
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ??
+  (import.meta.env.DEV ? 'http://localhost:8000' : '')
+).replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number
