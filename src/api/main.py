@@ -159,6 +159,12 @@ def check_rate_limit(
         while requests and now - requests[0] >= RATE_WINDOW:
             requests.popleft()
 
+        # Drop expired identity keys so arbitrary client IDs/IPs cannot make
+        # this process-local rate-limit map grow forever.
+        if not requests:
+            user_requests.pop(key, None)
+            requests = user_requests[key]
+
         if len(requests) >= limit:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
