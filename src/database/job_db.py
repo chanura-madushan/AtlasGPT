@@ -82,19 +82,38 @@ def claim_ingestion_job(lease_seconds: int = 900) -> dict | None:
     stale_before = (now - timedelta(seconds=lease_seconds)).isoformat()
     with _connect() as connection:
         connection.execute("BEGIN IMMEDIATE")
+        terminal_row = connection.execute("""
+            SELECT id, user_id, filename, file_path, attempts
+            FROM ingestion_jobs
+            WHERE status = 'processing'
+                AND claimed_at < ?
+                AND attempts >= 3
+            ORDER BY claimed_at ASC
+            LIMIT 1
+        """, (stale_before,)).fetchone()
+
+        if terminal_row is not None:
+            connection.execute("""
+                UPDATE ingestion_jobs
+                SET status = 'failed',
+                    error = 'Worker lease expired too many times.',
+                    claimed_at = NULL,
+                    updated_at = ?
+                WHERE id = ? AND status = 'processing'
+            """, (now.isoformat(), terminal_row["id"]))
+            failed_job = dict(terminal_row)
+            failed_job["status"] = "failed"
+            return failed_job
+
         connection.execute("""
             UPDATE ingestion_jobs
-            SET status = CASE
-                    WHEN attempts < 3 THEN 'queued'
-                    ELSE 'failed'
-                END,
-                error = CASE
-                    WHEN attempts < 3 THEN 'Worker lease expired; job requeued.'
-                    ELSE 'Worker lease expired too many times.'
-                END,
+            SET status = 'queued',
+                error = 'Worker lease expired; job requeued.',
                 claimed_at = NULL,
                 updated_at = ?
-            WHERE status = 'processing' AND claimed_at < ?
+            WHERE status = 'processing'
+                AND claimed_at < ?
+                AND attempts < 3
         """, (now.isoformat(), stale_before))
         row = connection.execute("""
             SELECT id, user_id, filename, file_path, attempts
