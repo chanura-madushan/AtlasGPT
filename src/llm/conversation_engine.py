@@ -156,7 +156,6 @@ def process_message(
 )
 
     prompt = (
-        f"{SYSTEM_PROMPT}\n\n"
         f"DOCUMENT CONTEXT:\n{document_context}\n\n"
         f"USER QUESTION:\n{message}"
     )
@@ -164,6 +163,7 @@ def process_message(
     answer = ask_ollama(
         prompt,
         history=history,
+        system=SYSTEM_PROMPT,
     )
 
     if answer.startswith("Error:"):
