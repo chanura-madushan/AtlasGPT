@@ -1,13 +1,13 @@
 
 import { useState, type FormEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError } from '../services/api'
 import ThemeToggle from '../components/theme/ThemeToggle'
 
 export default function Register() {
-  const { register, isAuthenticated } = useAuth()
+  const { register } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
@@ -16,9 +16,6 @@ export default function Register() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
