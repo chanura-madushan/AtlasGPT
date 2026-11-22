@@ -48,8 +48,12 @@ def test_failed_job_can_be_retried(tmp_path, monkeypatch):
     first = job_db.claim_ingestion_job()
     assert first["id"] == created["id"]
 
-    job_db.fail_ingestion_job(created["id"], "temporary model outage", retry=True)
+    retry_status = job_db.fail_ingestion_job(
+        created["id"], "temporary model outage", retry=True
+    )
     queued = job_db.get_ingestion_job(created["id"], 42)
+
+    assert retry_status == "queued"
 
     assert queued["status"] == "queued"
     assert queued["error"] == "temporary model outage"
@@ -58,9 +62,12 @@ def test_failed_job_can_be_retried(tmp_path, monkeypatch):
     assert second["id"] == created["id"]
     assert second["attempts"] == 1
 
-    job_db.fail_ingestion_job(created["id"], "permanent failure", retry=False)
+    final_status = job_db.fail_ingestion_job(
+        created["id"], "permanent failure", retry=False
+    )
     failed = job_db.get_ingestion_job(created["id"], 42)
 
+    assert final_status == "failed"
     assert failed["status"] == "failed"
 
 
