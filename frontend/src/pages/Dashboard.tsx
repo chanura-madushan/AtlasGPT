@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from 'react'
-import { FileText, MessageSquare, Plus, LogOut, Menu, Trash2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { FileText, MessageSquare, Plus, LogOut, Trash2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { ApiError, documentApi, conversationApi } from '../services/api'
 import type { Conversation } from '../types'
