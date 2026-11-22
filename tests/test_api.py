@@ -13,10 +13,12 @@ app = api_main.app
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):
-    from src.database import conversation_db
+    from src.database import conversation_db, job_db
 
     test_db = tmp_path / "test_api.db"
     monkeypatch.setattr(conversation_db, "DATABASE_PATH", test_db)
+    monkeypatch.setattr(job_db, "DATABASE_PATH", tmp_path / "test_jobs.db")
+    monkeypatch.setattr(api_main, "UPLOAD_DIR", tmp_path / "uploads")
     api_main.user_requests.clear()
     with TestClient(app) as test_client:
         api_key = conversation_db.create_api_credential(123)
