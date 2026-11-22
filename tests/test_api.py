@@ -1104,3 +1104,16 @@ def test_user_cannot_delete_another_users_conversation(client):
 
     assert len(history) == 1
     assert history[0]["content"] == "Private message"
+
+
+def test_persist_upload_creates_file_without_overwriting(tmp_path):
+    upload_path = tmp_path / "notes.txt"
+
+    api_main.persist_upload(upload_path, b"original")
+    assert upload_path.read_bytes() == b"original"
+
+    with pytest.raises(api_main.HTTPException) as error:
+        api_main.persist_upload(upload_path, b"replacement")
+
+    assert error.value.status_code == 409
+    assert upload_path.read_bytes() == b"original"
