@@ -109,6 +109,22 @@ security = HTTPBearer(auto_error=False)
 
 
 # --------------------------------------------------
+# Upload Persistence
+# --------------------------------------------------
+
+def persist_upload(file_path: Path, content: bytes) -> None:
+    """Create an upload without overwriting a concurrent upload."""
+    try:
+        with file_path.open("xb") as destination:
+            destination.write(content)
+    except FileExistsError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A document with this filename already exists",
+        ) from error
+
+
+# --------------------------------------------------
 # Trusted Origin Validation
 # --------------------------------------------------
 
@@ -653,7 +669,7 @@ async def upload_document(
                 detail=str(error),
             ) from error
 
-        file_path.write_bytes(file_content)
+        persist_upload(file_path, file_content)
 
         chunks = await run_in_threadpool(
             ingest_document,
@@ -735,7 +751,7 @@ async def upload_document_async(
                 detail=str(error),
             ) from error
 
-        file_path.write_bytes(content)
+        persist_upload(file_path, content)
         job = create_ingestion_job(user_id, filename, str(file_path))
     except HTTPException:
         raise
