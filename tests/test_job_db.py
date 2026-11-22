@@ -112,3 +112,33 @@ def test_job_database_path_uses_dotenv_configuration(
     finally:
         job_db.DATABASE_PATH = previous_path
         job_db.load_dotenv = original_load_dotenv
+
+
+def test_exhausted_stale_job_is_returned_for_cleanup(tmp_path, monkeypatch):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    monkeypatch.setattr(job_db, "DATABASE_PATH", tmp_path / "jobs.db")
+    job_db.init_job_db()
+    created = job_db.create_ingestion_job(
+        42, "stale.txt", str(tmp_path / "stale.txt")
+    )
+
+    for _ in range(3):
+        claimed = job_db.claim_ingestion_job()
+        assert claimed["id"] == created["id"]
+        with sqlite3.connect(job_db.DATABASE_PATH) as connection:
+            stale_time = (
+                datetime.now(timezone.utc) - timedelta(hours=1)
+            ).isoformat()
+            connection.execute(
+                "UPDATE ingestion_jobs SET claimed_at = ? WHERE id = ?",
+                (stale_time, created["id"]),
+            )
+
+    expired = job_db.claim_ingestion_job(lease_seconds=60)
+    assert expired["id"] == created["id"]
+    assert expired["status"] == "failed"
+
+    stored = job_db.get_ingestion_job(created["id"], 42)
+    assert stored["status"] == "failed"
