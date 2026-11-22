@@ -1136,3 +1136,18 @@ def test_rate_limiter_evicts_expired_identity_buckets(monkeypatch):
     assert ("ip:first", "auth") not in api_main.user_requests
     assert ("ip:second", "auth") in api_main.user_requests
     api_main.user_requests.clear()
+
+
+def test_delete_rejects_document_while_ingestion_is_active(client, tmp_path):
+    from src.database import job_db
+
+    upload = tmp_path / "uploads" / "123" / "queued.txt"
+    upload.parent.mkdir(parents=True, exist_ok=True)
+    upload.write_text("queued content", encoding="utf-8")
+    job_db.create_ingestion_job(123, "queued.txt", str(upload))
+
+    response = client.delete("/documents/queued.txt")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Document is still being processed"
+    assert upload.exists()
