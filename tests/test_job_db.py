@@ -82,3 +82,26 @@ def test_expired_worker_lease_requeues_job(tmp_path, monkeypatch):
 
     recovered = job_db.claim_ingestion_job(lease_seconds=60)
     assert recovered["id"] == first["id"]
+
+
+def test_job_database_path_uses_dotenv_configuration(
+    tmp_path, monkeypatch
+):
+    import importlib
+    from dotenv import load_dotenv as original_load_dotenv
+
+    previous_path = job_db.DATABASE_PATH
+    configured_path = tmp_path / "custom-jobs.db"
+
+    def fake_load_dotenv():
+        monkeypatch.setenv("ATLASGPT_JOBS_DB", str(configured_path))
+        return True
+
+    monkeypatch.setattr("dotenv.load_dotenv", fake_load_dotenv)
+
+    try:
+        importlib.reload(job_db)
+        assert job_db.DATABASE_PATH == configured_path
+    finally:
+        job_db.DATABASE_PATH = previous_path
+        job_db.load_dotenv = original_load_dotenv
