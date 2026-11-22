@@ -98,6 +98,7 @@ FRONTEND_ORIGIN = sorted(FRONTEND_ORIGINS)[0]
 
 user_requests = defaultdict(deque)
 rate_limit_lock = Lock()
+last_rate_limit_cleanup = 0.0
 
 UPLOAD_DIR = Path("data/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -154,16 +155,24 @@ def check_rate_limit(
     key = (user_id, category)
 
     with rate_limit_lock:
-        requests = user_requests[key]
+        global last_rate_limit_cleanup
 
+        # Periodically evict expired identity buckets, including keys that
+        # never receive another request.
+        if now - last_rate_limit_cleanup >= RATE_WINDOW:
+            for stale_key, stale_requests in list(user_requests.items()):
+                while (
+                    stale_requests
+                    and now - stale_requests[0] >= RATE_WINDOW
+                ):
+                    stale_requests.popleft()
+                if not stale_requests:
+                    user_requests.pop(stale_key, None)
+            last_rate_limit_cleanup = now
+
+        requests = user_requests[key]
         while requests and now - requests[0] >= RATE_WINDOW:
             requests.popleft()
-
-        # Drop expired identity keys so arbitrary client IDs/IPs cannot make
-        # this process-local rate-limit map grow forever.
-        if not requests:
-            user_requests.pop(key, None)
-            requests = user_requests[key]
 
         if len(requests) >= limit:
             raise HTTPException(
