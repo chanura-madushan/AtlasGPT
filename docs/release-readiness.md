@@ -50,6 +50,8 @@ The current SQLite databases, local upload directory, and persistent ChromaDB di
 
 The Ollama inference service must remain private to the application network. Do not expose its API directly to the public internet.
 
+For a same-origin deployment, configure the reverse proxy to route the frontend's API requests to the FastAPI service. For a separately hosted frontend and API, set the frontend build variable `VITE_API_BASE_URL` to the public HTTPS API origin and configure `FRONTEND_ORIGINS` on the backend to the exact frontend origin. Production frontend builds no longer silently fall back to a visitor's own `localhost:8000`.
+
 ## Release gate
 
 A release candidate should not be called production-ready until:
