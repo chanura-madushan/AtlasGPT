@@ -29,6 +29,7 @@ from src.database.job_db import (
     init_job_db,
     create_ingestion_job,
     get_ingestion_job,
+    has_active_ingestion_job,
 )
 from src.database.usage_db import (
     init_usage_db,
@@ -826,6 +827,12 @@ def remove_document(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid filename",
+        )
+
+    if has_active_ingestion_job(user_id, filename):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Document is still being processed",
         )
 
     file_path = UPLOAD_DIR / str(user_id) / filename
