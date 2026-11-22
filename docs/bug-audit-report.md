@@ -34,7 +34,13 @@ This was a source-level review through the repository. The complete runtime stac
 - `tests/test_conversation_engine.py`: system prompt is supplied separately from the document/user prompt.
 - `tests/test_ollama_client.py`: Ollama receives the dedicated system field.
 
-**Execution status:** tests are authored but must pass on CI and on the user's Windows development environment before the fixes are considered verified.
+**Automated CI result:** on audit commit `71119e14d75c4916f3dcc969c73d9791e62c8207`, GitHub Actions completed successfully:
+- Backend: **189 passed, 1 warning** (Python 3.13).
+- Frontend: **production build and ESLint passed** (Node.js 22).
+
+The single backend warning is a Starlette TestClient deprecation warning about passing cookies per request. It did not fail the suite.
+
+**Still unverified:** the user's Windows runtime and full staging integration with the real Ollama service, persistent ChromaDB, API, worker, and browser. Automated CI does not prove those components work together on the target machine.
 
 ## Remaining findings and release blockers
 
