@@ -130,7 +130,7 @@ def fail_ingestion_job(
     error: str,
     retry: bool = False,
     max_attempts: int = 3,
-) -> None:
+) -> str | None:
     now = datetime.now(timezone.utc).isoformat()
     status = "queued" if retry else "failed"
     with _connect() as connection:
