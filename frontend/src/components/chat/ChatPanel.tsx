@@ -96,6 +96,7 @@ export default function ChatPanel({
     setInput('')
     setSending(true)
 
+    const previousMessages = messages
     setMessages((previous) => [
       ...previous,
       { role: 'user', content: message },
@@ -114,6 +115,10 @@ export default function ChatPanel({
 
       onConversationUpdated()
     } catch (err) {
+      // Do not leave an unsaved optimistic message in the conversation.
+      // Restore the draft so the user can retry without losing their text.
+      setMessages(previousMessages)
+      setInput(message)
       setError(
         err instanceof ApiError
           ? err.message
