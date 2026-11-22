@@ -167,3 +167,17 @@ def fail_ingestion_job(
             (job_id,),
         ).fetchone()
         return row["status"] if row else None
+
+
+def has_active_ingestion_job(user_id: int, filename: str) -> bool:
+    """Return whether a user's document is queued or currently processing."""
+    with _connect() as connection:
+        row = connection.execute("""
+            SELECT 1
+            FROM ingestion_jobs
+            WHERE user_id = ?
+                AND filename = ?
+                AND status IN ('queued', 'processing')
+            LIMIT 1
+        """, (user_id, filename)).fetchone()
+    return row is not None
