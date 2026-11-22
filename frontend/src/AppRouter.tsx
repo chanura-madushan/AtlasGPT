@@ -1,10 +1,35 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
-import App from './App'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
-import RouteTransition from './components/ui/RouteTransition'
+
+function EntryRoute() {
+  const { isAuthenticated, loading, continueAsGuest } = useAuth()
+  const navigate = useNavigate()
+  const started = useRef(false)
+
+  useEffect(() => {
+    if (loading || isAuthenticated || started.current) return
+
+    started.current = true
+    continueAsGuest().catch(() => {
+      navigate('/login', { replace: true })
+    })
+  }, [loading, isAuthenticated, continueAsGuest, navigate])
+
+  if (loading || !isAuthenticated) {
+    return (
+      <div className="app-loading" role="status" aria-live="polite">
+        <span className="loading-mark">A</span>
+        <span>Opening AtlasGPT…</span>
+      </div>
+    )
+  }
+
+  return <Navigate to="/dashboard" replace />
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth()
@@ -13,7 +38,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <div className="app-loading" role="status" aria-live="polite">
         <span className="loading-mark">A</span>
-        <span>Preparing your workspace</span>
+        <span>Opening your workspace…</span>
       </div>
     )
   }
@@ -24,15 +49,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function AppRouter() {
   return (
     <BrowserRouter>
-      <RouteTransition>
-        <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </RouteTransition>
+      <Routes>
+        <Route path="/" element={<EntryRoute />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </BrowserRouter>
   )
 }
