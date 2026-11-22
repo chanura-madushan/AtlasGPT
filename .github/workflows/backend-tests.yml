@@ -3,11 +3,19 @@ name: Backend tests
 on:
   push:
     branches: [main, "audit/**", "feature/**", "fix/**"]
+  # Run against every PR target, including integration branches.
   pull_request:
-    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   tests:
+    name: Python 3.13 test suite
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
