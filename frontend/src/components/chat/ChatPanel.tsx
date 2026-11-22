@@ -79,7 +79,7 @@ export default function ChatPanel({
   // Scroll to the latest message.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
+      behavior: 'auto',
       block: 'end',
     })
   }, [messages, sending])
@@ -128,10 +128,10 @@ export default function ChatPanel({
     <section className="atlas-chat">
       <header className="atlas-chat__header"><div className="atlas-chat__identity"><span className="atlas-chat__avatar"><span>A</span></span><div><b>Ask Atlas</b><small>Grounded in your source material</small></div></div><span className="atlas-chat__secure"><i/> PRIVATE SESSION</span></header>
       <div className="atlas-chat__messages">
-        {loadingHistory && <div className="atlas-chat__empty"><LoaderCircle className="animate-spin" size={24}/><p>Opening this conversation…</p></div>}
+        {loadingHistory && <div className="atlas-chat__empty"><LoaderCircle  size={24}/><p>Opening this conversation…</p></div>}
         {!loadingHistory && messages.length === 0 && <div className="atlas-chat__welcome"><span className="atlas-chat__welcome-mark"><Sparkles size={24}/></span><span className="atlas-overline">A QUESTION IS A GOOD PLACE TO START</span><h3>What are you trying<br/>to understand?</h3><p>Ask about your uploaded documents. AtlasGPT searches relevant passages and uses them to inform its response.</p><div className="atlas-chat__suggestion"><MessageSquare size={15}/> Try asking for a summary, an explanation, or a comparison.</div></div>}
         {!loadingHistory && messages.map((message,index) => <article className={`atlas-message ${message.role === 'user' ? 'is-user' : 'is-assistant'}`} key={`${index}-${message.role}`}><span className="atlas-message__role">{message.role === 'user' ? 'YOU' : 'ATLAS'}</span><div className="atlas-message__body">{message.content}</div></article>)}
-        {sending && <div className="atlas-message is-assistant"><span className="atlas-message__role">ATLAS</span><div className="atlas-message__body atlas-chat__thinking"><LoaderCircle className="animate-spin" size={16}/> Looking through your context…</div></div>}<div ref={messagesEndRef}/>
+        {sending && <div className="atlas-message is-assistant"><span className="atlas-message__role">ATLAS</span><div className="atlas-message__body atlas-chat__thinking"><LoaderCircle  size={16}/> Looking through your context…</div></div>}<div ref={messagesEndRef}/>
       </div>
       {error && <div className="atlas-chat__error" role="alert">{error}</div>}
       <form onSubmit={handleSubmit} className="atlas-chat__composer"><div className="atlas-chat__input-wrap"><input value={input} onChange={event=>setInput(event.target.value)} placeholder="Ask a question about your sources…" maxLength={4000} disabled={sending || loadingHistory}/><button type="submit" disabled={!input.trim() || sending || loadingHistory} aria-label="Send message"><Send size={17}/></button></div><div className="atlas-chat__composer-foot"><span>Answers are generated from your available source context.</span><span>{input.length}/4000</span></div></form>
