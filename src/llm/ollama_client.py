@@ -9,21 +9,25 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
 
 
-def ask_ollama(prompt, history=None):
+def ask_ollama(prompt, history=None, system=None):
     try:
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": (
+                "\n".join(
+                    f"{message['role']}: {message['content']}"
+                    for message in (history or [])
+                )
+                + f"\nuser: {prompt}\nassistant:"
+            ),
+            "stream": False,
+        }
+        if system:
+            payload["system"] = system
+
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": (
-                    "\n".join(
-                        f"{message['role']}: {message['content']}"
-                        for message in (history or [])
-                    )
-                    + f"\nuser: {prompt}\nassistant:"
-                ),
-                "stream": False,
-            },
+            json=payload,
             timeout=120,
         )
 
