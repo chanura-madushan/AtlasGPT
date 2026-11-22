@@ -125,7 +125,7 @@ export default function ChatPanel({
   }
 
   return (
-    <section className="atlas-chat">
+    <section className="atlas-chat claude-chat">
       <header className="atlas-chat__header"><div className="atlas-chat__identity"><span className="atlas-chat__avatar"><span>A</span></span><div><b>Ask Atlas</b><small>Grounded in your source material</small></div></div><span className="atlas-chat__secure"><i/> PRIVATE SESSION</span></header>
       <div className="atlas-chat__messages">
         {loadingHistory && <div className="atlas-chat__empty"><LoaderCircle  size={24}/><p>Opening this conversation…</p></div>}
