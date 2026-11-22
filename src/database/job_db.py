@@ -143,3 +143,8 @@ def fail_ingestion_job(
                 error = ?, claimed_at = NULL, updated_at = ?
             WHERE id = ? AND status = 'processing'
         """, (status, max_attempts, error[:500], now, job_id))
+        row = connection.execute(
+            "SELECT status FROM ingestion_jobs WHERE id = ?",
+            (job_id,),
+        ).fetchone()
+        return row["status"] if row else None
