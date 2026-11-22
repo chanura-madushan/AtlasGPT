@@ -1117,3 +1117,20 @@ def test_persist_upload_creates_file_without_overwriting(tmp_path):
 
     assert error.value.status_code == 409
     assert upload_path.read_bytes() == b"original"
+
+
+def test_rate_limiter_evicts_expired_identity_buckets(monkeypatch):
+    api_main.user_requests.clear()
+    monkeypatch.setattr(api_main, "last_rate_limit_cleanup", 0.0)
+    clock = {"now": 100.0}
+    monkeypatch.setattr(api_main.time, "monotonic", lambda: clock["now"])
+
+    api_main.check_rate_limit("ip:first", "auth")
+    assert ("ip:first", "auth") in api_main.user_requests
+
+    clock["now"] += api_main.RATE_WINDOW + 1
+    api_main.check_rate_limit("ip:second", "auth")
+
+    assert ("ip:first", "auth") not in api_main.user_requests
+    assert ("ip:second", "auth") in api_main.user_requests
+    api_main.user_requests.clear()
