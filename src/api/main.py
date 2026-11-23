@@ -94,6 +94,19 @@ FRONTEND_ORIGINS = {
 if not FRONTEND_ORIGINS:
     raise RuntimeError("At least one FRONTEND_ORIGINS entry is required.")
 
+# Browsers treat localhost and 127.0.0.1 as different origins. Vite may
+# display either URL depending on how the dev server is opened. In local
+# development, allow the equivalent loopback hostname without weakening
+# production origin checks.
+if ENVIRONMENT == "development":
+    loopback_aliases = set()
+    for origin in FRONTEND_ORIGINS:
+        if origin.startswith("http://localhost:"):
+            loopback_aliases.add(origin.replace("http://localhost:", "http://127.0.0.1:", 1))
+        elif origin.startswith("http://127.0.0.1:"):
+            loopback_aliases.add(origin.replace("http://127.0.0.1:", "http://localhost:", 1))
+    FRONTEND_ORIGINS.update(loopback_aliases)
+
 # Backwards-compatible single-origin value for existing integrations.
 FRONTEND_ORIGIN = sorted(FRONTEND_ORIGINS)[0]
 
