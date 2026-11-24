@@ -11,7 +11,7 @@
 
 ### Your documents. Your AI. Your knowledge.
 
-AtlasGPT is a local-first AI assistant that lets users upload documents, ask questions about their content, and interact with a locally hosted language model through a browser interface, Telegram, or a REST API.
+Atlas is a  AI assistant that lets users upload documents, ask questions about their content, and interact with a locally hosted language model through a browser interface, Telegram, or a REST API.
 
 [Repository](https://github.com/chanura-madushan/AtlasGPT) · [Report a bug](https://github.com/chanura-madushan/AtlasGPT/issues)
 
