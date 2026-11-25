@@ -31,6 +31,21 @@ def client(tmp_path, monkeypatch):
         yield test_client
 
 
+def test_loopback_alias_origin_is_allowed_for_dev_preflight(client):
+    response = client.options(
+        "/chat",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"
+    assert response.headers["access-control-allow-credentials"] == "true"
+
+
 def test_home_endpoint(client):
     response = client.get("/")
 
