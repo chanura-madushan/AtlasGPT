@@ -36,6 +36,6 @@ jobs:
 
       - name: Run tests
         env:
-          ATLASGPT_ENV: test
+          ATLASGPT_ENV: development
           FRONTEND_ORIGINS: http://localhost:5173
         run: python -m pytest -v
